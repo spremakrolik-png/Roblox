@@ -35,6 +35,7 @@ local TEMPLATE: Types.ProfileData = {
 local store = ProfileStore.New(STORE_NAME, TEMPLATE :: any)
 local profiles: { [Player]: any } = {}
 local lastShopRequest: { [Player]: number } = {}
+local changeListeners: { (player: Player) -> () } = {}
 
 -- Extra loadout slots (the Extra Ability Slot game pass in Phase 5). Plugged in by MonetizationService.
 local extraSlotsFor: (player: Player) -> number = function(_player: Player)
@@ -120,6 +121,14 @@ function PlayerDataService.push(player: Player)
 	}
 	updateLeaderstats(player, data.Points)
 	Remotes.PlayerData:FireClient(player, snapshot)
+	for _, listener in changeListeners do
+		task.spawn(listener, player)
+	end
+end
+
+-- Called after every change of a player's data (load, purchase, loadout, Points, slots).
+function PlayerDataService.onChanged(listener: (player: Player) -> ())
+	table.insert(changeListeners, listener)
 end
 
 function PlayerDataService.addPoints(player: Player, amount: number)

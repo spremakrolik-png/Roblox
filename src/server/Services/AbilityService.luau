@@ -1,7 +1,8 @@
 --!strict
--- Abilities in a round. A player's equipped loadout for their role is locked when the gates open.
--- Every use is validated on the server: round running, role, slot, ownership (via the loadout),
--- cooldown or once-per-round, and a rate limit. Effects run on the server.
+-- Abilities. In a round a player's equipped loadout for their role is locked when the gates open.
+-- Everyone else (the lobby, eliminated runners, spectators) gets "lobby slots": the movement abilities
+-- and the cannon from both loadouts, usable only inside the lobby. Every use is validated on the
+-- server: mode, slot, ownership (via the loadout), cooldown or once-per-round, and a rate limit.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,11 +16,13 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local TrackGenerator = require(script.Parent.Parent.Track.TrackGenerator)
 local Build = require(script.Parent.Parent.Util.Build)
 local CharacterService = require(script.Parent.CharacterService)
+local LobbyService = require(script.Parent.LobbyService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
 local TrapService = require(script.Parent.TrapService)
 
 local DOUBLE_JUMP_ATTRIBUTE = "DoubleJump"
 local CANNON_COLOR = Color3.fromRGB(80, 200, 255)
+local LOADOUT_ROLES: { "Runner" | "Trapper" } = { "Runner", "Trapper" }
 
 export type RoundContext = {
 	track: Types.Track,
@@ -27,6 +30,15 @@ export type RoundContext = {
 	runners: { Player },
 	aliveRunners: () -> { Player },
 }
+
+-- Where an effect happens: who it can hit, the track (nil in the lobby) and whether it may go on.
+type Env = {
+	targets: () -> { Player },
+	track: Types.Track?,
+	isLive: () -> boolean,
+}
+
+type Mode = "Round" | "Lobby"
 
 type SlotState = {
 	slot: number,
@@ -38,7 +50,10 @@ type SlotState = {
 local AbilityService = {}
 
 local context: RoundContext? = nil
-local equipped: { [Player]: { SlotState } } = {}
+local roundEnv: Env? = nil
+local equipped: { [Player]: { SlotState } } = {} -- round slots, locked when the gates open
+local lobbySlots: { [Player]: { SlotState } } = {}
+local modeOf: { [Player]: Mode } = {}
 local shieldUntil: { [Player]: number } = {}
 local lastUse: { [Player]: number } = {}
 
@@ -46,12 +61,31 @@ local function param(def: Types.AbilityDef, name: string): number
 	return Abilities.param(def, name)
 end
 
+-- Round slots belong to the trapper and to runners still alive on the track.
+local function modeFor(player: Player): Mode
+	local current = context
+	if not current then
+		return "Lobby"
+	end
+	if player == current.trapper or table.find(current.aliveRunners(), player) then
+		return "Round"
+	end
+	return "Lobby"
+end
+
+local function activeSlots(player: Player): { SlotState }
+	if modeOf[player] == "Round" then
+		return equipped[player] or {}
+	end
+	return lobbySlots[player] or {}
+end
+
 -- Sends the HUD the player's slots with ready times converted to server time.
 local function pushState(player: Player)
 	local states: { Types.AbilitySlotState } = {}
 	local now = os.clock()
 	local serverNow = workspace:GetServerTimeNow()
-	for _, state in equipped[player] or {} do
+	for _, state in activeSlots(player) do
 		table.insert(states, {
 			slot = state.slot,
 			id = state.def.id,
@@ -62,6 +96,63 @@ local function pushState(player: Player)
 		})
 	end
 	Remotes.AbilityState:FireClient(player, states)
+end
+
+-- Switches the player to the right set of slots: speed effects end with the mode they came from,
+-- Double Jump follows the active slots, and the HUD is refreshed.
+local function sync(player: Player)
+	if player.Parent ~= Players then
+		return
+	end
+	local mode = modeFor(player)
+	if modeOf[player] ~= nil and modeOf[player] ~= mode then
+		CharacterService.clearSpeedModifiers(player)
+	end
+	modeOf[player] = mode
+	local doubleJump = false
+	for _, state in activeSlots(player) do
+		if state.def.id == "DoubleJump" then
+			doubleJump = true
+		end
+	end
+	player:SetAttribute(DOUBLE_JUMP_ATTRIBUTE, if doubleJump then true else nil)
+	pushState(player)
+end
+
+local function syncAll()
+	for _, player in Players:GetPlayers() do
+		sync(player)
+	end
+end
+
+-- Lobby slots: lobby-usable abilities from both loadouts, numbered 1..N. Cooldowns survive a rebuild.
+local function rebuildLobbySlots(player: Player)
+	if not PlayerDataService.isLoaded(player) then
+		return
+	end
+	local previous: { [string]: SlotState } = {}
+	for _, state in lobbySlots[player] or {} do
+		previous[state.def.id] = state
+	end
+	local slots: { SlotState } = {}
+	local seen: { [string]: boolean } = {}
+	for _, role in LOADOUT_ROLES do
+		for _, id in PlayerDataService.getLoadout(player, role) do
+			local def = Abilities.byId[id]
+			if def and def.lobbyUse and not seen[def.id] then
+				seen[def.id] = true
+				local old = previous[def.id]
+				table.insert(slots, {
+					slot = #slots + 1,
+					def = def,
+					readyAt = if old then old.readyAt else 0,
+					used = false,
+				})
+			end
+		end
+	end
+	lobbySlots[player] = slots
+	sync(player)
 end
 
 -- Effects ---------------------------------------------------------------------------
@@ -86,13 +177,7 @@ end
 
 -- One Slow Cannon shot, simulated on the server. It flies through the glass (collision groups) and
 -- stops at the first other surface or at the first runner within HitRadius.
-local function fireShot(
-	current: RoundContext,
-	shooter: Player,
-	origin: Vector3,
-	direction: Vector3,
-	def: Types.AbilityDef
-)
+local function fireShot(env: Env, shooter: Player, origin: Vector3, direction: Vector3, def: Types.AbilityDef)
 	local speed = param(def, "ProjectileSpeed")
 	local range = param(def, "Range")
 	local hitRadius = param(def, "HitRadius")
@@ -124,13 +209,13 @@ local function fireShot(
 		ball:Destroy()
 	end
 	connection = RunService.Heartbeat:Connect(function(dt: number)
-		if context ~= current then
+		if not env.isLive() then
 			finish()
 			return
 		end
 		local step = math.min(speed * dt, range - travelled)
 		local nextPosition = position + direction * step
-		for _, runner in current.aliveRunners() do
+		for _, runner in env.targets() do
 			local root = CharacterService.getRoot(runner)
 			if root and closestDistance(root.Position, position, nextPosition) <= hitRadius then
 				slowRunner(def, runner)
@@ -142,7 +227,7 @@ local function fireShot(
 		if hit then
 			local model = hit.Instance:FindFirstAncestorOfClass("Model") :: Model?
 			local target = if model then Players:GetPlayerFromCharacter(model) else nil
-			if target and table.find(current.aliveRunners(), target) then
+			if target and table.find(env.targets(), target) then
 				slowRunner(def, target)
 			end
 			finish()
@@ -169,7 +254,7 @@ local function segmentBeside(track: Types.Track, position: Vector3): Types.Track
 	return nil
 end
 
-type Effect = (player: Player, def: Types.AbilityDef, current: RoundContext, aim: Vector3?) -> boolean
+type Effect = (player: Player, def: Types.AbilityDef, env: Env, aim: Vector3?) -> boolean
 
 local EFFECTS: { [string]: Effect } = {
 	FeatherFall = function(player, def)
@@ -202,10 +287,11 @@ local EFFECTS: { [string]: Effect } = {
 		CharacterService.applyVelocity(player, flat.Unit * (param(def, "Distance") / seconds), seconds, "Dash")
 		return true
 	end,
-	BlindFlash = function(player, def, current)
+	BlindFlash = function(player, def, env)
+		local track = env.track
 		local root = CharacterService.getRoot(player)
-		local segment = if root then segmentBeside(current.track, root.Position) else nil
-		if not segment then
+		local segment = if root and track then segmentBeside(track, root.Position) else nil
+		if not segment or not track then
 			return false
 		end
 		local duration = param(def, "Duration")
@@ -224,10 +310,10 @@ local EFFECTS: { [string]: Effect } = {
 			canTouch = false,
 			canQuery = false,
 			castShadow = false,
-			parent = current.track.model,
+			parent = track.model,
 		})
 		Debris:AddItem(cloud, duration)
-		for _, runner in current.aliveRunners() do
+		for _, runner in env.targets() do
 			local runnerRoot = CharacterService.getRoot(runner)
 			if runnerRoot and TrackGenerator.pointInBox(fog, runnerRoot.Position) then
 				Remotes.BlindFlash:FireClient(runner, duration)
@@ -241,7 +327,7 @@ local EFFECTS: { [string]: Effect } = {
 	TrapRecharge = function(player)
 		return TrapService.rechargeLast(player)
 	end,
-	SlowCannon = function(player, def, current, aim)
+	SlowCannon = function(player, def, env, aim)
 		if typeof(aim) ~= "Vector3" or aim.Magnitude < 0.5 or aim.Magnitude > 1.5 then
 			return false
 		end
@@ -249,10 +335,10 @@ local EFFECTS: { [string]: Effect } = {
 		task.spawn(function()
 			for _ = 1, param(def, "Shots") do
 				local root = CharacterService.getRoot(player)
-				if context ~= current or not root then
+				if not env.isLive() or not root then
 					return
 				end
-				fireShot(current, player, root.Position + Vector3.new(0, 1.5, 0) + direction * 2, direction, def)
+				fireShot(env, player, root.Position + Vector3.new(0, 1.5, 0) + direction * 2, direction, def)
 				task.wait(param(def, "ShotInterval"))
 			end
 		end)
@@ -262,16 +348,32 @@ local EFFECTS: { [string]: Effect } = {
 
 -- Requests -----------------------------------------------------------------------------
 
-local function canAct(current: RoundContext, player: Player): boolean
-	if player == current.trapper then
-		return true
-	end
-	return table.find(current.aliveRunners(), player) ~= nil
+local function inLobby(player: Player): boolean
+	local root = CharacterService.getRoot(player)
+	return root ~= nil and CharacterService.isAlive(player) and LobbyService.isInLobby(root.Position)
+end
+
+-- Lobby targets for the cannon: everyone else playing around in the lobby.
+local function lobbyEnv(shooter: Player): Env
+	return {
+		targets = function(): { Player }
+			local list: { Player } = {}
+			for _, other in Players:GetPlayers() do
+				if other ~= shooter and modeOf[other] ~= "Round" and inLobby(other) then
+					table.insert(list, other)
+				end
+			end
+			return list
+		end,
+		track = nil,
+		isLive = function()
+			return true
+		end,
+	}
 end
 
 local function onUse(player: Player, slot: unknown, aim: unknown)
-	local current = context
-	if not current or typeof(slot) ~= "number" then
+	if typeof(slot) ~= "number" then
 		return
 	end
 	local now = os.clock()
@@ -280,13 +382,25 @@ local function onUse(player: Player, slot: unknown, aim: unknown)
 	end
 	lastUse[player] = now
 
+	-- The mode may have changed since the last sync (e.g. the runner was just eliminated).
+	if modeOf[player] ~= modeFor(player) then
+		sync(player)
+	end
+	local env: Env
+	if modeOf[player] == "Round" and roundEnv then
+		env = roundEnv
+	elseif modeOf[player] == "Lobby" and inLobby(player) then
+		env = lobbyEnv(player)
+	else
+		return
+	end
 	local state: SlotState? = nil
-	for _, candidate in equipped[player] or {} do
+	for _, candidate in activeSlots(player) do
 		if candidate.slot == slot then
 			state = candidate
 		end
 	end
-	if not state or not canAct(current, player) then
+	if not state then
 		return
 	end
 	local kind = state.def.kind
@@ -299,7 +413,7 @@ local function onUse(player: Player, slot: unknown, aim: unknown)
 
 	local effect = EFFECTS[state.def.id]
 	local aimVector: Vector3? = if typeof(aim) == "Vector3" then aim else nil
-	if effect and effect(player, state.def, current, aimVector) then
+	if effect and effect(player, state.def, env, aimVector) then
 		if kind == "Active" then
 			state.readyAt = now + state.def.cooldown
 		else
@@ -314,6 +428,13 @@ end
 -- Locks loadouts and arms abilities once the gates open.
 function AbilityService.startRound(roundContext: RoundContext)
 	context = roundContext
+	roundEnv = {
+		targets = roundContext.aliveRunners,
+		track = roundContext.track,
+		isLive = function()
+			return context == roundContext
+		end,
+	}
 	table.clear(equipped)
 	table.clear(shieldUntil)
 	local function arm(player: Player, role: "Runner" | "Trapper")
@@ -322,13 +443,11 @@ function AbilityService.startRound(roundContext: RoundContext)
 			local def = Abilities.byId[id]
 			if def then
 				table.insert(slots, { slot = slot, def = def, readyAt = 0, used = false })
-				if def.id == "DoubleJump" then
-					player:SetAttribute(DOUBLE_JUMP_ATTRIBUTE, true)
-				end
 			end
 		end
 		equipped[player] = slots
-		pushState(player)
+		-- Lobby effects (a slow from a lobby cannon, a lobby Speed Burst) do not follow onto the track.
+		CharacterService.clearSpeedModifiers(player)
 	end
 	for _, runner in roundContext.runners do
 		if runner.Parent == Players then
@@ -338,6 +457,12 @@ function AbilityService.startRound(roundContext: RoundContext)
 	if roundContext.trapper.Parent == Players then
 		arm(roundContext.trapper, "Trapper")
 	end
+	syncAll()
+end
+
+-- A runner left the round (eliminated or finished): back to lobby slots.
+function AbilityService.refresh(player: Player)
+	sync(player)
 end
 
 -- Shield: absorbs one direct trap hit per round, then a short grace period for the same trap.
@@ -368,26 +493,35 @@ end
 -- Stops abilities (the round has a winner).
 function AbilityService.stopRound()
 	context = nil
+	roundEnv = nil
+	syncAll()
 end
 
 -- Clears everything after the round: equipped slots, effects and the HUD.
 function AbilityService.reset()
 	context = nil
+	roundEnv = nil
 	for player in equipped do
 		if player.Parent == Players then
-			player:SetAttribute(DOUBLE_JUMP_ATTRIBUTE, nil)
 			CharacterService.clearSpeedModifiers(player)
-			Remotes.AbilityState:FireClient(player, {})
 		end
 	end
 	table.clear(equipped)
 	table.clear(shieldUntil)
+	syncAll()
 end
 
 function AbilityService.init()
 	Remotes.UseAbility.OnServerEvent:Connect(onUse)
+	-- Loading, buying, equipping and new slots all come through here.
+	PlayerDataService.onChanged(rebuildLobbySlots)
+	for _, player in Players:GetPlayers() do
+		rebuildLobbySlots(player)
+	end
 	Players.PlayerRemoving:Connect(function(player)
 		equipped[player] = nil
+		lobbySlots[player] = nil
+		modeOf[player] = nil
 		shieldUntil[player] = nil
 		lastUse[player] = nil
 	end)

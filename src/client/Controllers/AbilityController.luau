@@ -1,6 +1,6 @@
 --!strict
--- Ability buttons during a round (keys 1/2/3 or big on-screen buttons), Double Jump, the Slow Cannon
--- aim and the Blind Flash overlay. The server decides everything; this only sends requests.
+-- Ability buttons (keys 1-6 or big on-screen buttons) in a round and in the lobby, Double Jump,
+-- the Slow Cannon aim and the Blind Flash overlay. The server decides everything; this only sends requests.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -14,6 +14,8 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local UI = require(script.Parent.Parent.Util.UI)
 
 local BUTTON_SIZE = 84
+local COMPACT_SIZE = 56 -- lobby slots can hold up to six abilities
+local MAX_SLOTS = 6
 local AIM_DISTANCE = 200
 local DOUBLE_JUMP_DELAY = 0.2 -- seconds in the air before a jump press counts as the second jump
 
@@ -35,6 +37,9 @@ local KEYS: { [Enum.KeyCode]: number } = {
 	[Enum.KeyCode.One] = 1,
 	[Enum.KeyCode.Two] = 2,
 	[Enum.KeyCode.Three] = 3,
+	[Enum.KeyCode.Four] = 4,
+	[Enum.KeyCode.Five] = 5,
+	[Enum.KeyCode.Six] = 6,
 }
 
 -- Where the trapper aims: from the character towards the centre of the screen.
@@ -74,10 +79,11 @@ local function rebuild(states: { Types.AbilitySlotState })
 		entry.button:Destroy()
 	end
 	table.clear(slotButtons)
+	local height = if #states > 3 then COMPACT_SIZE else BUTTON_SIZE
 	for index, state in states do
 		local button = Instance.new("TextButton")
 		button.Name = `Slot{state.slot}`
-		button.Size = UDim2.fromOffset(BUTTON_SIZE * 1.6, BUTTON_SIZE)
+		button.Size = UDim2.fromOffset(BUTTON_SIZE * 1.6, height)
 		button.LayoutOrder = index
 		button.BackgroundColor3 = UI.Colors.Panel
 		button.BackgroundTransparency = 0.15
@@ -234,7 +240,7 @@ function AbilityController.start()
 	column.BackgroundTransparency = 1
 	column.AnchorPoint = Vector2.new(1, 0.5)
 	column.Position = UDim2.new(1, -12, 0.35, 0)
-	column.Size = UDim2.fromOffset(BUTTON_SIZE * 1.6, (BUTTON_SIZE + 8) * 3)
+	column.Size = UDim2.fromOffset(BUTTON_SIZE * 1.6, (COMPACT_SIZE + 8) * MAX_SLOTS)
 	column.Visible = false
 	local layout = Instance.new("UIListLayout")
 	layout.SortOrder = Enum.SortOrder.LayoutOrder

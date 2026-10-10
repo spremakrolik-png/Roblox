@@ -1,5 +1,5 @@
 --!strict
--- Abilities: bought forever for Points, equipped in per-role loadouts. Price scale: 100 = weakest,
+-- Abilities: bought forever for Points (or Robux), equipped in per-role loadouts. Price scale: 100 = weakest,
 -- 500 = strongest. Player-facing text is Russian.
 
 local Types = require(script.Parent.Parent.Types)
@@ -20,6 +20,7 @@ local list: { Types.AbilityDef } = {
 		price = 100,
 		cooldown = 20,
 		kind = "Active",
+		lobbyUse = true,
 		params = { Duration = 3, MaxFallSpeed = 8 },
 	},
 	{
@@ -30,6 +31,7 @@ local list: { Types.AbilityDef } = {
 		price = 150,
 		cooldown = 15,
 		kind = "Active",
+		lobbyUse = true,
 		params = { Duration = 2.5, Multiplier = 1.6 },
 	},
 	{
@@ -40,6 +42,7 @@ local list: { Types.AbilityDef } = {
 		price = 250,
 		cooldown = 0,
 		kind = "Passive",
+		lobbyUse = true,
 		params = {},
 	},
 	{
@@ -50,6 +53,7 @@ local list: { Types.AbilityDef } = {
 		price = 300,
 		cooldown = 12,
 		kind = "Active",
+		lobbyUse = true,
 		params = { Distance = 18, Seconds = 0.2 },
 	},
 	{
@@ -60,6 +64,7 @@ local list: { Types.AbilityDef } = {
 		price = 500,
 		cooldown = 0,
 		kind = "OncePassive",
+		lobbyUse = false,
 		params = { GraceSeconds = 1.5 },
 	},
 	-- Trapper -----------------------------------------------------------------
@@ -71,6 +76,7 @@ local list: { Types.AbilityDef } = {
 		price = 100,
 		cooldown = 18,
 		kind = "Active",
+		lobbyUse = true,
 		params = { Duration = 4, Multiplier = 1.4 },
 	},
 	{
@@ -81,6 +87,7 @@ local list: { Types.AbilityDef } = {
 		price = 250,
 		cooldown = 20,
 		kind = "Active",
+		lobbyUse = false,
 		params = { Duration = 3 },
 	},
 	{
@@ -91,6 +98,7 @@ local list: { Types.AbilityDef } = {
 		price = 400,
 		cooldown = 0,
 		kind = "OncePerRound",
+		lobbyUse = false,
 		params = { Range = 60 },
 	},
 	{
@@ -101,6 +109,7 @@ local list: { Types.AbilityDef } = {
 		price = 450,
 		cooldown = 0,
 		kind = "OncePerRound",
+		lobbyUse = false,
 		params = {},
 	},
 	{
@@ -111,6 +120,7 @@ local list: { Types.AbilityDef } = {
 		price = 500,
 		cooldown = 8,
 		kind = "Active",
+		lobbyUse = true,
 		params = {
 			Shots = 3,
 			ShotInterval = 0.15,

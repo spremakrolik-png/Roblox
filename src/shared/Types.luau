@@ -180,6 +180,7 @@ export type AbilityDef = {
 	price: number, -- Points
 	cooldown: number, -- seconds, Active only
 	kind: AbilityKind,
+	lobbyUse: boolean, -- also works in the lobby (movement and the cannon; nothing that needs the track)
 	params: { [string]: number },
 }
 

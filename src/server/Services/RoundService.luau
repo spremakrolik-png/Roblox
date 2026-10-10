@@ -254,6 +254,7 @@ local function eliminate(runner: RunnerState, reason: Types.EliminationReason, f
 	runner.cause = cause
 	if inGame(runner.player) then
 		runner.player:SetAttribute(PlayerKeys.Status, "Eliminated")
+		AbilityService.refresh(runner.player)
 	end
 	if feedText then
 		feed(feedText, "Death")
@@ -282,6 +283,7 @@ local function finish(round: Round, runner: RunnerState)
 	runner.player:SetAttribute(PlayerKeys.Status, "Finished")
 	runner.player:SetAttribute(PlayerKeys.Place, runner.place)
 	runner.player:SetAttribute(PlayerKeys.Progress, 1)
+	AbilityService.refresh(runner.player)
 	feed(
 		string.format(
 			"%s финиширует: %d место (%s)",

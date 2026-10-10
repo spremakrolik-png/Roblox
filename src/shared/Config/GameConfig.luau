@@ -13,7 +13,7 @@ local GameConfig = {
 	ResultsSeconds = 8,
 
 	-- Round safety (players never see these) ----------------------------
-	AfkTimeoutSeconds = 25, -- a runner who does not reach a new segment in this time is eliminated
+	AfkTimeoutSeconds = 60, -- a runner who does not reach a new segment in this time is eliminated
 	RoundHardLimitSeconds = 12 * 60, -- technical limit; the round is closed with no rewards
 	TrackingRate = 10, -- server progress checks per second
 	MaxSegmentSkip = 1, -- how many segments a runner may skip between two checks before it looks like a teleport
