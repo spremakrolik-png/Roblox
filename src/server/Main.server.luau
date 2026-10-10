@@ -5,6 +5,7 @@ local Services = script.Parent.Services
 
 local AbilityService = require(Services.AbilityService)
 local CharacterService = require(Services.CharacterService)
+local LightingService = require(Services.LightingService)
 local LobbyService = require(Services.LobbyService)
 local MonetizationService = require(Services.MonetizationService)
 local PlayerDataService = require(Services.PlayerDataService)
@@ -18,6 +19,7 @@ if ok and not streaming then
 	warn("[Main] Workspace.StreamingEnabled is off. Turn it on in the Workspace properties.")
 end
 
+LightingService.init()
 CharacterService.init()
 PlayerDataService.init()
 MonetizationService.init()

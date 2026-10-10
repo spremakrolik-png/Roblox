@@ -218,6 +218,7 @@ export type ProfileData = {
 	Owned: { [string]: boolean },
 	Loadouts: Loadouts,
 	Receipts: { string }, -- processed purchase receipt ids, oldest first (trimmed)
+	SecondChances: number, -- bought second chances not used yet
 	Stats: PlayerStats,
 }
 
@@ -227,6 +228,15 @@ export type DataSnapshot = {
 	owned: { string },
 	loadouts: Loadouts,
 	slots: number,
+	secondChances: number,
+}
+
+-- Sent to a runner right after a death: come back at the last checkpoint.
+export type SecondChanceOffer = {
+	seconds: number,
+	tokens: number, -- saved second chances the player can spend
+	robux: number, -- price on the buy button, 0 = not on sale
+	free: boolean, -- Studio testing: a free button
 }
 
 -- One equipped ability as the HUD shows it during a round.

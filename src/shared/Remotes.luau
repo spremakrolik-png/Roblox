@@ -40,6 +40,10 @@ export type Remotes = {
 	TrapperHud: RemoteEvent,
 	-- server -> all clients: (position: Vector3, vip: boolean) a runner crossed the finish line
 	FinishEffect: RemoteEvent,
+	-- server -> one client: (offer: Types.SecondChanceOffer) right after the runner died
+	SecondChanceOffer: RemoteEvent,
+	-- client -> server: ("Use" | "Free" | "Decline") answer to the offer
+	SecondChanceRequest: RemoteEvent,
 }
 
 local NAMES = {
@@ -58,6 +62,8 @@ local NAMES = {
 	"AbilityEffect",
 	"TrapperHud",
 	"FinishEffect",
+	"SecondChanceOffer",
+	"SecondChanceRequest",
 }
 
 local folder: Instance

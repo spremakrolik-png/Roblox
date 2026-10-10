@@ -16,9 +16,11 @@ local GameConfig = {
 	AfkTimeoutSeconds = 60, -- a runner who does not reach a new segment in this time is eliminated
 	RoundHardLimitSeconds = 12 * 60, -- technical limit; the round is closed with no rewards
 	TrackingRate = 10, -- server progress checks per second
-	MaxSegmentSkip = 1, -- how many segments a runner may skip between two checks before it looks like a teleport
+	MaxSegmentSkip = 1,
+	SecondChanceSeconds = 8, -- how long a dead runner may decide to come back at the last checkpoint -- how many segments a runner may skip between two checks before it looks like a teleport
 
 	-- Characters ----------------------------------------------------------
+	RespawnSeconds = 2, -- after a death the character reappears in the lobby this fast
 	LobbyWalkSpeed = 16,
 	RunnerWalkSpeed = 16,
 	TrapperWalkSpeed = 16 * 3, -- three times a runner: the trapper has to keep up with the leader
@@ -91,6 +93,7 @@ local GameConfig = {
 	-- Testing helpers. They only work in Roblox Studio, never in a published game.
 	Debug = {
 		StudioStartPoints = 2000, -- players with fewer Points get topped up to this, to try the shop
+		StudioFreeSecondChance = true, -- the second chance offer has a free button (to test reviving)
 	},
 
 	-- Anti-cheat: the fastest a runner could legitimately cover the stretch between checkpoints.

@@ -25,6 +25,7 @@ local TEMPLATE: Types.ProfileData = {
 	Owned = {},
 	Loadouts = { Runner = {}, Trapper = {} },
 	Receipts = {},
+	SecondChances = 0,
 	Stats = {
 		Rounds = 0,
 		Finishes = 0,
@@ -121,6 +122,7 @@ function PlayerDataService.push(player: Player)
 			Trapper = PlayerDataService.getLoadout(player, "Trapper"),
 		},
 		slots = PlayerDataService.slotCount(player),
+		secondChances = data.SecondChances,
 	}
 	updateLeaderstats(player, data.Points)
 	Remotes.PlayerData:FireClient(player, snapshot)

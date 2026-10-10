@@ -217,6 +217,7 @@ function CharacterService.init()
 	PhysicsService:CollisionGroupSetCollidable(groups.Projectile, groups.Glass, false)
 
 	workspace.Gravity = GameConfig.Gravity
+	Players.RespawnTime = GameConfig.RespawnSeconds
 	StarterPlayer.CharacterUseJumpPower = true
 	StarterPlayer.CharacterJumpPower = GameConfig.JumpPower
 	StarterPlayer.CharacterWalkSpeed = GameConfig.LobbyWalkSpeed

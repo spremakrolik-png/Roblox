@@ -65,6 +65,9 @@ local Monetization = {
 		SlowCannon = { productId = 0, robux = 99 },
 	} :: { [string]: { productId: number, robux: number } },
 
+	-- Second chance after a death: back to the last checkpoint, once per round.
+	SecondChance = { productId = 0, robux = 25 },
+
 	ReceiptLogSize = 100, -- processed receipt ids kept in a player's save (newest last)
 
 	-- VIP look

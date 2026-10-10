@@ -74,6 +74,7 @@ local function buildBar(gui: ScreenGui)
 	fill.BackgroundTransparency = 0.6
 	fill.BorderSizePixel = 0
 	fill.Size = UDim2.fromScale(0, 1)
+	UI.gradient(fill, Color3.fromRGB(120, 220, 255), Color3.fromRGB(150, 110, 255), 0)
 	local fillCorner = Instance.new("UICorner")
 	fillCorner.CornerRadius = UDim.new(1, 0)
 	fillCorner.Parent = fill
@@ -194,6 +195,8 @@ end
 local function buildTrapperPanel(gui: ScreenGui)
 	trapperPanel = UI.panel("TrapperPanel", gui, UDim2.fromOffset(230, 210), UDim2.fromOffset(10, 150), Vector2.zero)
 	UI.padding(trapperPanel, 8)
+	UI.gradient(trapperPanel, Color3.fromRGB(70, 30, 40), Color3.fromRGB(20, 16, 24))
+	UI.stroke(trapperPanel, UI.Colors.Trapper, 2, 0.35)
 	trapperPanel.Visible = false
 	UI.label({
 		name = "Title",

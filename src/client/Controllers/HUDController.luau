@@ -64,6 +64,8 @@ local function build(): Elements
 	local status = UI.panel("Status", gui, UDim2.new(0.5, 0, 0, 72), UDim2.new(0.5, 0, 0, 8), Vector2.new(0.5, 0))
 	UI.sizeLimit(status, Vector2.new(280, 56), Vector2.new(560, 90))
 	UI.padding(status, 6)
+	UI.gradient(status, Color3.fromRGB(52, 44, 86), Color3.fromRGB(18, 18, 30))
+	UI.stroke(status, Color3.fromRGB(255, 160, 210), 2, 0.4)
 	local statusTitle = UI.label({
 		name = "Title",
 		parent = status,
@@ -129,6 +131,9 @@ local function build(): Elements
 		UI.panel("Results", gui, UDim2.fromScale(0.6, 0.62), UDim2.fromScale(0.5, 0.55), Vector2.new(0.5, 0.5))
 	UI.sizeLimit(results, Vector2.new(280, 240), Vector2.new(520, 460))
 	UI.padding(results, 12)
+	results.BackgroundTransparency = 0.08
+	UI.gradient(results, Color3.fromRGB(56, 44, 92), Color3.fromRGB(16, 16, 28))
+	UI.stroke(results, UI.Colors.Gold, 3, 0.2)
 	results.Visible = false
 	local resultsTitle = UI.label({
 		name = "Title",
@@ -439,6 +444,7 @@ local function onResults(results: Types.RoundResults)
 	end
 
 	elements.results.Visible = true
+	UI.popIn(elements.results)
 end
 
 -- Start -------------------------------------------------------------------------

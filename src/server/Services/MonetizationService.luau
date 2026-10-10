@@ -19,6 +19,7 @@ type Grant = (player: Player, data: Types.ProfileData) -> ()
 local MonetizationService = {}
 
 local passes: { [Player]: { [Monetization.PassId]: boolean } } = {}
+local secondChanceHandler: (player: Player) -> () = function(_player: Player) end
 local productGrants: { [number]: Grant } = {}
 
 function MonetizationService.owns(player: Player, id: Monetization.PassId): boolean
@@ -114,6 +115,11 @@ local function buildProducts()
 			end
 		end
 	end
+	if Monetization.SecondChance.productId ~= 0 then
+		productGrants[Monetization.SecondChance.productId] = function(_player: Player, data: Types.ProfileData)
+			data.SecondChances += 1
+		end
+	end
 	for abilityId, product in Monetization.AbilityProducts do
 		local def = Abilities.byId[abilityId]
 		if product.productId ~= 0 and def then
@@ -125,6 +131,11 @@ local function buildProducts()
 			end
 		end
 	end
+end
+
+-- Called after a second chance purchase is saved (RoundService revives the runner if it can).
+function MonetizationService.setSecondChanceHandler(handler: (player: Player) -> ())
+	secondChanceHandler = handler
 end
 
 local function processReceipt(receipt: any): Enum.ProductPurchaseDecision
@@ -142,7 +153,11 @@ local function processReceipt(receipt: any): Enum.ProductPurchaseDecision
 		grant(player, data)
 	end)
 	if decision == Enum.ProductPurchaseDecision.PurchaseGranted and player.Parent == Players then
-		Remotes.ShopResult:FireClient(player, true, "Покупка получена!")
+		if receipt.ProductId == Monetization.SecondChance.productId then
+			task.spawn(secondChanceHandler, player)
+		else
+			Remotes.ShopResult:FireClient(player, true, "Покупка получена!")
+		end
 	end
 	return decision
 end

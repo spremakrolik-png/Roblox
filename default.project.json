@@ -23,6 +23,11 @@
 				}
 			}
 		},
+		"Lighting": {
+			"$properties": {
+				"Technology": "ShadowMap"
+			}
+		},
 		"Workspace": {
 			"$properties": {
 				"StreamingEnabled": true

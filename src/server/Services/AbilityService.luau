@@ -15,6 +15,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Types = require(ReplicatedStorage.Shared.Types)
 local TrackGenerator = require(script.Parent.Parent.Track.TrackGenerator)
 local Build = require(script.Parent.Parent.Util.Build)
+local CharacterFx = require(script.Parent.Parent.Util.CharacterFx)
 local CharacterService = require(script.Parent.CharacterService)
 local LobbyService = require(script.Parent.LobbyService)
 local PlayerDataService = require(script.Parent.PlayerDataService)
@@ -22,6 +23,10 @@ local TrapService = require(script.Parent.TrapService)
 
 local DOUBLE_JUMP_ATTRIBUTE = "DoubleJump"
 local CANNON_COLOR = Color3.fromRGB(80, 200, 255)
+local RUNNER_TRAIL = Color3.fromRGB(90, 190, 255)
+local TRAPPER_TRAIL = Color3.fromRGB(255, 90, 90)
+local DASH_TRAIL = Color3.fromRGB(240, 245, 255)
+local MAX_MUZZLE_DISTANCE = 6 -- a muzzle further than this from the root is not trusted
 local LOADOUT_ROLES: { "Runner" | "Trapper" } = { "Runner", "Trapper" }
 
 export type RoundContext = {
@@ -56,6 +61,8 @@ local lobbySlots: { [Player]: { SlotState } } = {}
 local modeOf: { [Player]: Mode } = {}
 local shieldUntil: { [Player]: number } = {}
 local lastUse: { [Player]: number } = {}
+
+local updateCannon: (player: Player) -> ()
 
 local function param(def: Types.AbilityDef, name: string): number
 	return Abilities.param(def, name)
@@ -98,6 +105,25 @@ local function pushState(player: Player)
 	Remotes.AbilityState:FireClient(player, states)
 end
 
+-- The Slow Cannon sits on the shoulder of everyone who can fire it right now.
+function updateCannon(player: Player)
+	local character = player.Character
+	if not character then
+		return
+	end
+	local carries = false
+	for _, state in activeSlots(player) do
+		if state.def.id == "SlowCannon" then
+			carries = true
+		end
+	end
+	if carries then
+		CharacterFx.attachCannon(character)
+	else
+		CharacterFx.removeCannon(character)
+	end
+end
+
 -- Switches the player to the right set of slots: speed effects end with the mode they came from,
 -- Double Jump follows the active slots, and the HUD is refreshed.
 local function sync(player: Player)
@@ -116,6 +142,7 @@ local function sync(player: Player)
 		end
 	end
 	player:SetAttribute(DOUBLE_JUMP_ATTRIBUTE, if doubleJump then true else nil)
+	updateCannon(player)
 	pushState(player)
 end
 
@@ -168,7 +195,12 @@ local function closestDistance(point: Vector3, from: Vector3, to: Vector3): numb
 end
 
 local function slowRunner(def: Types.AbilityDef, target: Player)
-	CharacterService.addSpeedModifier(target, "SlowCannon", param(def, "SlowMultiplier"), param(def, "SlowSeconds"))
+	local seconds = param(def, "SlowSeconds")
+	CharacterService.addSpeedModifier(target, "SlowCannon", param(def, "SlowMultiplier"), seconds)
+	Remotes.AbilityEffect:FireClient(target, "Slowed", seconds, param(def, "SlowMultiplier"))
+	if target.Character then
+		CharacterFx.frost(target.Character, seconds)
+	end
 	local root = CharacterService.getRoot(target)
 	if root then
 		Remotes.DeathEffect:FireAllClients(root.Position, CANNON_COLOR, "Hit")
@@ -194,6 +226,8 @@ local function fireShot(env: Env, shooter: Player, origin: Vector3, direction: V
 		castShadow = false,
 		parent = workspace,
 	})
+	CharacterFx.tracer(ball, CANNON_COLOR)
+	CharacterFx.muzzleFlash(origin, workspace)
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { ball, shooter.Character :: Instance }
@@ -229,6 +263,8 @@ local function fireShot(env: Env, shooter: Player, origin: Vector3, direction: V
 			local target = if model then Players:GetPlayerFromCharacter(model) else nil
 			if target and table.find(env.targets(), target) then
 				slowRunner(def, target)
+			else
+				CharacterFx.muzzleFlash(hit.Position, workspace)
 			end
 			finish()
 			return
@@ -263,14 +299,27 @@ local EFFECTS: { [string]: Effect } = {
 		end
 		-- The client owns its character's physics, so it applies the slow fall itself.
 		Remotes.AbilityEffect:FireClient(player, "FeatherFall", param(def, "Duration"), param(def, "MaxFallSpeed"))
+		if player.Character then
+			CharacterFx.parachute(player.Character, param(def, "Duration"))
+		end
 		return true
 	end,
 	SpeedBurst = function(player, def)
-		CharacterService.addSpeedModifier(player, def.id, param(def, "Multiplier"), param(def, "Duration"))
+		local seconds = param(def, "Duration")
+		CharacterService.addSpeedModifier(player, def.id, param(def, "Multiplier"), seconds)
+		Remotes.AbilityEffect:FireClient(player, "Speed", seconds, param(def, "Multiplier"))
+		if player.Character then
+			CharacterFx.speedTrail(player.Character, RUNNER_TRAIL, seconds)
+		end
 		return true
 	end,
 	Sprint = function(player, def)
-		CharacterService.addSpeedModifier(player, def.id, param(def, "Multiplier"), param(def, "Duration"))
+		local seconds = param(def, "Duration")
+		CharacterService.addSpeedModifier(player, def.id, param(def, "Multiplier"), seconds)
+		Remotes.AbilityEffect:FireClient(player, "Speed", seconds, param(def, "Multiplier"))
+		if player.Character then
+			CharacterFx.speedTrail(player.Character, TRAPPER_TRAIL, seconds)
+		end
 		return true
 	end,
 	Dash = function(player, def)
@@ -285,6 +334,10 @@ local EFFECTS: { [string]: Effect } = {
 		end
 		local seconds = param(def, "Seconds")
 		CharacterService.applyVelocity(player, flat.Unit * (param(def, "Distance") / seconds), seconds, "Dash")
+		Remotes.AbilityEffect:FireClient(player, "Dash", seconds, 0)
+		if player.Character then
+			CharacterFx.speedTrail(player.Character, DASH_TRAIL, seconds + 0.25, 3)
+		end
 		return true
 	end,
 	BlindFlash = function(player, def, env)
@@ -338,7 +391,12 @@ local EFFECTS: { [string]: Effect } = {
 				if not env.isLive() or not root then
 					return
 				end
-				fireShot(env, player, root.Position + Vector3.new(0, 1.5, 0) + direction * 2, direction, def)
+				local character = player.Character
+				local muzzle = if character then CharacterFx.muzzle(character) else nil
+				local origin = if muzzle and (muzzle - root.Position).Magnitude <= MAX_MUZZLE_DISTANCE
+					then muzzle
+					else root.Position + Vector3.new(0, 1.5, 0) + direction * 2
+				fireShot(env, player, origin, direction, def)
 				task.wait(param(def, "ShotInterval"))
 			end
 		end)
@@ -482,6 +540,7 @@ function AbilityService.absorbTrapHit(player: Player): boolean
 				field.Visible = true
 				field.Parent = character
 				Debris:AddItem(field, grace)
+				CharacterFx.shieldGlow(character, grace)
 			end
 			pushState(player)
 			return true
@@ -517,6 +576,17 @@ function AbilityService.init()
 	PlayerDataService.onChanged(rebuildLobbySlots)
 	for _, player in Players:GetPlayers() do
 		rebuildLobbySlots(player)
+	end
+	-- A fresh character gets its cannon back.
+	local function watchCharacters(player: Player)
+		player.CharacterAdded:Connect(function(character)
+			character:WaitForChild("HumanoidRootPart", 10)
+			updateCannon(player)
+		end)
+	end
+	Players.PlayerAdded:Connect(watchCharacters)
+	for _, player in Players:GetPlayers() do
+		watchCharacters(player)
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		equipped[player] = nil

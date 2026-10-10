@@ -2,8 +2,10 @@
 -- The game loop: Waiting/Intermission (LobbyService) -> Countdown -> Round -> Results -> back.
 -- The server is the only source of truth for roles, progress, finishes and deaths.
 
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local GameState = require(ReplicatedStorage.Shared.GameState)
@@ -14,8 +16,11 @@ local TrapsConfig = require(ReplicatedStorage.Shared.Config.Traps)
 local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 local TrackGenerator = require(script.Parent.Parent.Track.TrackGenerator)
 local CharacterService = require(script.Parent.CharacterService)
+local LightingService = require(script.Parent.LightingService)
 local LobbyService = require(script.Parent.LobbyService)
 local AbilityService = require(script.Parent.AbilityService)
+local MonetizationService = require(script.Parent.MonetizationService)
+local PlayerDataService = require(script.Parent.PlayerDataService)
 local PointsService = require(script.Parent.PointsService)
 local SpectateService = require(script.Parent.SpectateService)
 local TrapService = require(script.Parent.TrapService)
@@ -49,6 +54,11 @@ type RunnerState = {
 	cause: string?, -- trap kills: "was crushed by Crushing Walls"
 	lastTrap: Types.TrapType?, -- the last trap that hit this runner (for fall credit)
 	lastTrapAt: number,
+	life: number, -- grows with every second chance; handlers of an older character ignore events
+	killCredited: boolean, -- the trapper got a kill for this runner's last death
+	secondChanceUsed: boolean,
+	offerUntil: number, -- os.clock() until which the second chance offer is open (0 = none)
+	reviving: boolean, -- being moved back to the track; not tracked meanwhile
 }
 
 type Round = {
@@ -70,6 +80,7 @@ local RoundService = {}
 local lastTrapperUserId: number? = nil
 local lastTrapperHud = "" -- what the trapper's HUD shows, to send only changes
 local TRAPPER_HUD_TRAPS = 5
+local SECOND_CHANCE_RECEIPT_WAIT = 15 -- seconds the offer stays open after a purchase while it is saved
 
 -- What is currently running, so an unexpected error can still clean up.
 local active: { round: Round?, track: Types.Track?, participants: { Player } } = {
@@ -230,6 +241,7 @@ local function runCountdown(roster: Roster): Types.Track?
 	local track = result :: Types.Track
 	active.track = track
 	GameState.write(Keys.ThemeName, track.theme.name)
+	LightingService.setTheme(track.theme)
 	GameState.write(Keys.CheckpointCount, #track.checkpoints)
 	local marks: { string } = {}
 	for _, checkpoint in track.checkpoints do
@@ -252,6 +264,9 @@ end
 
 -- Round -----------------------------------------------------------------------
 
+-- Defined with the second chance below; eliminate() opens the offer.
+local offerSecondChance: (runner: RunnerState, reason: Types.EliminationReason) -> ()
+
 -- Trap kills pass their own kill-feed line and a short cause for the results screen.
 local function eliminate(runner: RunnerState, reason: Types.EliminationReason, feedText: string?, cause: string?)
 	if runner.status ~= "Alive" then
@@ -263,6 +278,7 @@ local function eliminate(runner: RunnerState, reason: Types.EliminationReason, f
 	if inGame(runner.player) then
 		runner.player:SetAttribute(PlayerKeys.Status, "Eliminated")
 		AbilityService.refresh(runner.player)
+		offerSecondChance(runner, reason)
 	end
 	if feedText then
 		feed(feedText, "Death")
@@ -280,6 +296,7 @@ local function trapKill(round: Round, runner: RunnerState, trapType: Types.TrapT
 	local phrase = if byFall then info.fallPhrase else info.killPhrase
 	eliminate(runner, "Trap", `{info.name} {phrase} {runner.name}`, `ловушка «{info.name}»`)
 	round.trapperKills += 1
+	runner.killCredited = true
 end
 
 local function finish(round: Round, runner: RunnerState)
@@ -335,7 +352,7 @@ end
 
 local function trackRunner(round: Round, runner: RunnerState, now: number)
 	local root = CharacterService.getRoot(runner.player)
-	if not root then
+	if not root or runner.reviving then
 		return
 	end
 	local position = root.Position
@@ -439,8 +456,10 @@ local function checkOutcome(round: Round): Types.Winner?
 		return "Runners"
 	end
 	local anyStayed = false
+	local now = os.clock()
 	for _, runner in round.runners do
-		if runner.status == "Alive" then
+		-- A runner deciding on a second chance keeps the round open.
+		if runner.status == "Alive" or (runner.offerUntil > now and inGame(runner.player)) then
 			return nil
 		end
 		if runner.reason ~= "Left" then
@@ -470,30 +489,172 @@ local function newRunnerState(player: Player): RunnerState
 		cause = nil,
 		lastTrap = nil,
 		lastTrapAt = 0,
+		life = 0,
+		killCredited = false,
+		secondChanceUsed = false,
+		offerUntil = 0,
+		reviving = false,
 		place = nil,
 		finishTime = nil,
 	}
 end
 
+-- Watches the runner's current character. After a second chance the runner gets a new character;
+-- events from the old one are ignored (`life` changed).
 local function watchRunner(round: Round, runner: RunnerState)
 	local player = runner.player
+	local life = runner.life
+	local character = player.Character
 	local humanoid = CharacterService.getHumanoid(player)
 	if humanoid then
 		connect(round, humanoid.Died, function()
-			if not round.closed then
+			if not round.closed and runner.life == life then
 				eliminate(runner, "Died")
 			end
 		end)
 	end
 	-- Covers characters removed without a Died event. When the player is leaving the server this
 	-- can fire before PlayerRemoving, so wait a moment and let "Left" win in that case.
-	connect(round, player.CharacterRemoving, function()
+	connect(round, player.CharacterRemoving, function(removed: Model)
+		if removed ~= character then
+			return
+		end
 		task.delay(0.5, function()
-			if not round.closed then
+			if not round.closed and runner.life == life then
 				eliminate(runner, if inGame(player) then "Died" else "Left")
 			end
 		end)
 	end)
+end
+
+-- Second chance ---------------------------------------------------------------------------
+
+local SECOND_CHANCE_REASONS: { [Types.EliminationReason]: boolean } = { Died = true, Fell = true, Trap = true }
+
+local function freeSecondChance(): boolean
+	return RunService:IsStudio() and GameConfig.Debug.StudioFreeSecondChance
+end
+
+local function secondChanceTokens(player: Player): number
+	local data = PlayerDataService.getData(player)
+	return if data then data.SecondChances else 0
+end
+
+-- Right after a death: offer to come back at the last checkpoint (Robux, a saved token, or free in Studio).
+function offerSecondChance(runner: RunnerState, reason: Types.EliminationReason)
+	local round = active.round
+	if not round or round.closed or runner.secondChanceUsed or not SECOND_CHANCE_REASONS[reason] then
+		return
+	end
+	local product = Monetization.SecondChance
+	local tokens = secondChanceTokens(runner.player)
+	local canBuy = product.productId ~= 0
+	if not canBuy and tokens <= 0 and not freeSecondChance() then
+		return
+	end
+	runner.offerUntil = os.clock() + GameConfig.SecondChanceSeconds
+	local offer: Types.SecondChanceOffer = {
+		seconds = GameConfig.SecondChanceSeconds,
+		tokens = tokens,
+		robux = if canBuy then product.robux else 0,
+		free = freeSecondChance(),
+	}
+	Remotes.SecondChanceOffer:FireClient(runner.player, offer)
+end
+
+-- Where a revived runner appears: just past the last checkpoint passed, or at the start.
+local function reviveSpot(track: Types.Track, runner: RunnerState): (CFrame, number)
+	local checkpoint = track.checkpoints[runner.checkpoint]
+	if checkpoint then
+		local index = math.min(checkpoint.afterSegment + 1, #track.segments)
+		return track.segments[index].entry * CFrame.new(0, 3.5, -2), index
+	end
+	return track.runnerSpawns[1], 0
+end
+
+local function revive(runner: RunnerState): boolean
+	local round = active.round
+	local player = runner.player
+	if
+		not round
+		or round.closed
+		or not inGame(player)
+		or runner.status ~= "Eliminated"
+		or runner.secondChanceUsed
+		or runner.offerUntil < os.clock()
+	then
+		return false
+	end
+	runner.secondChanceUsed = true
+	runner.offerUntil = 0
+	runner.life += 1
+	runner.status = "Alive"
+	runner.reason = nil
+	runner.cause = nil
+	runner.lastTrap = nil
+	runner.reviving = true
+	if runner.killCredited then
+		round.trapperKills = math.max(0, round.trapperKills - 1)
+		runner.killCredited = false
+	end
+	local spot, furthest = reviveSpot(round.track, runner)
+	runner.furthest = furthest
+	local now = os.clock()
+	runner.lastAdvanceAt = now
+	runner.checkpointAt = now
+	player:SetAttribute(PlayerKeys.Status, "Alive")
+	feed(`{runner.name} получает второй шанс!`, "Info")
+
+	task.spawn(function()
+		-- A dead character respawns by itself in a moment; loading another one meanwhile could make
+		-- Roblox replace the revived character with that automatic respawn.
+		local deadline = os.clock() + Players.RespawnTime + 3
+		while not CharacterService.isAlive(player) and inGame(player) and os.clock() < deadline do
+			task.wait(0.1)
+		end
+		if CharacterService.ensureCharacter(player) and not round.closed and runner.status == "Alive" then
+			CharacterService.setWalkSpeed(player, GameConfig.RunnerWalkSpeed)
+			CharacterService.teleport(player, spot)
+			watchRunner(round, runner)
+			Remotes.DeathEffect:FireAllClients(spot.Position, Color3.fromRGB(120, 255, 160), "Revive")
+		end
+		runner.lastAdvanceAt = os.clock()
+		runner.checkpointAt = os.clock()
+		runner.reviving = false
+		AbilityService.refresh(player)
+	end)
+	return true
+end
+
+-- Uses a saved token if the player has one and their offer is open.
+local function useToken(player: Player): boolean
+	local round = active.round
+	local runner = if round then round.byPlayer[player] else nil
+	local data = PlayerDataService.getData(player)
+	if not runner or not data or data.SecondChances <= 0 then
+		return false
+	end
+	if revive(runner) then
+		data.SecondChances -= 1
+		PlayerDataService.push(player)
+		return true
+	end
+	return false
+end
+
+local function onSecondChanceRequest(player: Player, action: unknown)
+	local round = active.round
+	local runner = if round then round.byPlayer[player] else nil
+	if not runner then
+		return
+	end
+	if action == "Use" then
+		useToken(player)
+	elseif action == "Free" and freeSecondChance() then
+		revive(runner)
+	elseif action == "Decline" then
+		runner.offerUntil = 0
+	end
 end
 
 local function watchTrapper(round: Round)
@@ -801,6 +962,7 @@ local function cleanup(round: Round?, track: Types.Track?, participants: { Playe
 	end
 	GameState.write(Keys.TrapperName, "")
 	GameState.write(Keys.ThemeName, "")
+	LightingService.setTheme(nil)
 	GameState.write(Keys.CheckpointCount, 0)
 	GameState.write(Keys.CheckpointMarks, "")
 	GameState.write(Keys.AliveRunners, 0)
@@ -848,6 +1010,34 @@ local function cleanupActive()
 end
 
 function RoundService.start()
+	Remotes.SecondChanceRequest.OnServerEvent:Connect(onSecondChanceRequest)
+	-- A bought second chance arrives as a saved token; spend it at once if the offer is still open.
+	MonetizationService.setSecondChanceHandler(function(player: Player)
+		if not useToken(player) and inGame(player) then
+			Remotes.ShopResult:FireClient(
+				player,
+				true,
+				"Второй шанс сохранён — используй при следующей смерти"
+			)
+		end
+	end)
+	-- The purchase window can outlast the offer; keep it open while the receipt is processed.
+	MarketplaceService.PromptProductPurchaseFinished:Connect(
+		function(userId: number, productId: number, purchased: boolean)
+			local round = active.round
+			local player = Players:GetPlayerByUserId(userId)
+			local runner = if round and player then round.byPlayer[player] else nil
+			if
+				purchased
+				and runner
+				and productId == Monetization.SecondChance.productId
+				and runner.status == "Eliminated"
+				and not runner.secondChanceUsed
+			then
+				runner.offerUntil = math.max(runner.offerUntil, os.clock() + SECOND_CHANCE_RECEIPT_WAIT)
+			end
+		end
+	)
 	task.spawn(function()
 		while true do
 			local ok, err = pcall(playOnce)

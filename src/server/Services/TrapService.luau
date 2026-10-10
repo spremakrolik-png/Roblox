@@ -46,6 +46,10 @@ local function setUsed(button: ButtonState)
 	button.top.Material = Enum.Material.SmoothPlastic
 	button.status.Text = "ИСПОЛЬЗОВАНО"
 	button.status.TextColor3 = USED_COLOR
+	local glow = button.top:FindFirstChild("Glow")
+	if glow and glow:IsA("PointLight") then
+		glow.Enabled = false
+	end
 end
 
 local function hooksFor(trapType: Types.TrapType): Types.TrapHooks
@@ -100,6 +104,10 @@ local function setReady(button: ButtonState)
 	button.top.Material = Enum.Material.Neon
 	button.status.Text = "ГОТОВО"
 	button.status.TextColor3 = READY_COLOR
+	local glow = button.top:FindFirstChild("Glow")
+	if glow and glow:IsA("PointLight") then
+		glow.Enabled = true
+	end
 end
 
 local function activate(button: ButtonState)
@@ -172,6 +180,14 @@ local function buildButton(trap: Types.TrackTrap, parent: Instance): ButtonState
 	prompt.KeyboardKeyCode = Enum.KeyCode.E
 	prompt.Enabled = false
 	prompt.Parent = top
+
+	-- A glow that is on while the button is ready.
+	local glow = Instance.new("PointLight")
+	glow.Name = "Glow"
+	glow.Color = READY_COLOR
+	glow.Range = 10
+	glow.Brightness = 2
+	glow.Parent = top
 
 	local billboard = Build.billboard(top, 3.5, Vector2.new(8, 3))
 	Build.textLabel("Name", billboard, info.name, info.color, UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.6))

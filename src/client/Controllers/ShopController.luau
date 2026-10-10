@@ -12,6 +12,7 @@ local GameState = require(ReplicatedStorage.Shared.GameState)
 local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Types = require(ReplicatedStorage.Shared.Types)
+local Icons = require(script.Parent.Parent.Util.Icons)
 local UI = require(script.Parent.Parent.Util.UI)
 local SoundController = require(script.Parent.SoundController)
 
@@ -44,12 +45,16 @@ local function makeButton(parent: Instance, text: string, size: UDim2, color: Co
 	button.TextColor3 = UI.Colors.Text
 	button.BackgroundColor3 = color or Color3.fromRGB(45, 50, 66)
 	button.Size = size
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 10)
-	corner.Parent = button
+	button.AutoButtonColor = false
+	button.TextStrokeTransparency = 0.6
+	local base = button.BackgroundColor3
+	UI.corner(button, 10)
+	UI.gradient(button, base:Lerp(Color3.new(1, 1, 1), 0.18), base:Lerp(Color3.new(0, 0, 0), 0.22))
+	UI.stroke(button, Color3.new(1, 1, 1), 1.5, 0.65)
 	local constraint = Instance.new("UITextSizeConstraint")
 	constraint.MaxTextSize = 22
 	constraint.Parent = button
+	UI.pressable(button)
 	button.Activated:Connect(function()
 		SoundController.play("Click")
 	end)
@@ -73,6 +78,9 @@ local function makePanel(name: string, title: string, gui: ScreenGui): (Frame, S
 	local panel = UI.panel(name, gui, UDim2.fromScale(0.72, 0.78), UDim2.fromScale(0.5, 0.52), Vector2.new(0.5, 0.5))
 	UI.sizeLimit(panel, Vector2.new(320, 300), Vector2.new(760, 560))
 	UI.padding(panel, 12)
+	panel.BackgroundTransparency = 0.05
+	UI.gradient(panel, Color3.fromRGB(46, 38, 76), Color3.fromRGB(16, 18, 30))
+	UI.stroke(panel, Color3.fromRGB(255, 150, 200), 2.5, 0.25)
 	panel.Visible = false
 	UI.label({ name = "Title", parent = panel, text = title, size = UDim2.new(1, -60, 0, 36), maxTextSize = 32 })
 	table.insert(
@@ -124,16 +132,18 @@ end
 
 -- Shop ------------------------------------------------------------------------------
 
-local function newRow(name: string, order: number): Frame
+-- A card with an icon tile on the left.
+local function newRow(name: string, order: number, icon: Icons.Icon): Frame
 	local row = Instance.new("Frame")
 	row.Name = name
 	row.LayoutOrder = order
 	row.Size = UDim2.new(1, -12, 0, ROW_HEIGHT)
-	row.BackgroundColor3 = Color3.fromRGB(30, 33, 45)
+	row.BackgroundColor3 = Color3.fromRGB(34, 36, 54)
 	row.BorderSizePixel = 0
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = row
+	UI.corner(row, 10)
+	UI.gradient(row, Color3.fromRGB(255, 255, 255), Color3.fromRGB(200, 200, 215))
+	UI.stroke(row, icon.color, 1.5, 0.55)
+	UI.iconTile(row, icon.glyph, icon.color, UDim2.fromOffset(ROW_HEIGHT - 12, ROW_HEIGHT - 12), UDim2.fromOffset(6, 6))
 	return row
 end
 
@@ -142,8 +152,8 @@ local function rowText(row: Frame, title: string, description: string, width: nu
 		name = "Name",
 		parent = row,
 		text = title,
-		size = UDim2.new(width, -8, 0.5, 0),
-		position = UDim2.fromOffset(8, 2),
+		size = UDim2.new(width, -ROW_HEIGHT, 0.5, 0),
+		position = UDim2.fromOffset(ROW_HEIGHT, 2),
 		alignX = Enum.TextXAlignment.Left,
 		maxTextSize = 22,
 	})
@@ -151,8 +161,8 @@ local function rowText(row: Frame, title: string, description: string, width: nu
 		name = "Description",
 		parent = row,
 		text = description,
-		size = UDim2.new(width, -8, 0.45, 0),
-		position = UDim2.new(0, 8, 0.5, 0),
+		size = UDim2.new(width, -ROW_HEIGHT, 0.45, 0),
+		position = UDim2.new(0, ROW_HEIGHT, 0.5, 0),
 		color = UI.Colors.Muted,
 		font = Enum.Font.SourceSansSemibold,
 		alignX = Enum.TextXAlignment.Left,
@@ -174,14 +184,15 @@ local function renderRobux(order: number): number
 			table.insert(packs, pack)
 		end
 	end
-	if #passes == 0 and #packs == 0 then
+	local secondChance = Monetization.SecondChance
+	if #passes == 0 and #packs == 0 and secondChance.productId == 0 then
 		return order
 	end
 	order += 1
 	header(shopList, order, "ROBUX", UI.Colors.Gold)
 	for _, def in passes do
 		order += 1
-		local row = newRow(def.id, order)
+		local row = newRow(def.id, order, Icons.Passes[def.id] or Icons.Unknown)
 		rowText(row, def.name, def.description, 0.65)
 		local owned = player:GetAttribute(Monetization.attribute(def.id)) == true
 		local button = makeButton(
@@ -203,7 +214,7 @@ local function renderRobux(order: number): number
 	end
 	for index, pack in packs do
 		order += 1
-		local row = newRow(`Pack{index}`, order)
+		local row = newRow(`Pack{index}`, order, Icons.Points)
 		rowText(row, `{pack.points} очков`, "Сразу на счёт", 0.65)
 		local button = makeButton(row, `R$ {pack.robux}`, UDim2.new(0.33, -8, 1, -12), ROBUX_COLOR)
 		button.AnchorPoint = Vector2.new(1, 0.5)
@@ -211,6 +222,24 @@ local function renderRobux(order: number): number
 		local productId = pack.productId
 		button.Activated:Connect(function()
 			MarketplaceService:PromptProductPurchase(player, productId)
+		end)
+		row.Parent = shopList
+	end
+	if secondChance.productId ~= 0 then
+		order += 1
+		local row = newRow("SecondChance", order, Icons.SecondChance)
+		local have = if snapshot then snapshot.secondChances else 0
+		rowText(
+			row,
+			"Второй шанс",
+			`Вернуться на чекпоинт после смерти. Есть: {have}`,
+			0.65
+		)
+		local button = makeButton(row, `R$ {secondChance.robux}`, UDim2.new(0.33, -8, 1, -12), ROBUX_COLOR)
+		button.AnchorPoint = Vector2.new(1, 0.5)
+		button.Position = UDim2.new(1, -6, 0.5, 0)
+		button.Activated:Connect(function()
+			MarketplaceService:PromptProductPurchase(player, secondChance.productId)
 		end)
 		row.Parent = shopList
 	end
@@ -231,7 +260,7 @@ local function renderShop()
 			local owned = owns(def.id)
 			local product = Monetization.AbilityProducts[def.id]
 			local robux = not owned and product ~= nil and product.productId ~= 0
-			local row = newRow(def.id, order)
+			local row = newRow(def.id, order, Icons.ability(def.id))
 			rowText(row, def.name, def.description, if robux then 0.5 else 0.65)
 			local buy = makeButton(
 				row,
@@ -297,7 +326,7 @@ local function renderLoadout()
 			local selected = current ~= nil and current.role == role and current.slot == slot
 			local button = makeButton(
 				slotsRow,
-				`{slot}. {if def then def.name else "Пусто"}`,
+				if def then `{Icons.ability(def.id).glyph} {def.name}` else `{slot}. Пусто`,
 				UDim2.new(1 / data.slots, -8, 1, 0),
 				if selected then Color3.fromRGB(200, 150, 40) else Color3.fromRGB(45, 50, 66)
 			)
@@ -326,7 +355,12 @@ local function renderLoadout()
 			for _, def in Abilities.list do
 				if def.role == role and owns(def.id) then
 					any = true
-					local choice = makeButton(choices, def.name, UDim2.new(), Color3.fromRGB(40, 110, 160))
+					local choice = makeButton(
+						choices,
+						`{Icons.ability(def.id).glyph} {def.name}`,
+						UDim2.new(),
+						Icons.ability(def.id).color:Lerp(Color3.new(0, 0, 0), 0.35)
+					)
 					choice.Activated:Connect(function()
 						Remotes.ShopRequest:FireServer("Equip", role, selection.slot, def.id)
 						selectedSlot = nil
@@ -388,8 +422,10 @@ function ShopController.start()
 	layout.Padding = UDim.new(0, 10)
 	layout.Parent = openButtons
 	openButtons.Parent = gui
-	local shopButton = makeButton(openButtons, "МАГАЗИН", UDim2.fromOffset(150, 56), Color3.fromRGB(40, 140, 80))
-	local loadoutButton = makeButton(openButtons, "НАБОР", UDim2.fromOffset(150, 56), Color3.fromRGB(40, 110, 160))
+	local shopButton =
+		makeButton(openButtons, "🛒 МАГАЗИН", UDim2.fromOffset(150, 56), Color3.fromRGB(40, 170, 90))
+	local loadoutButton =
+		makeButton(openButtons, "🎒 НАБОР", UDim2.fromOffset(150, 56), Color3.fromRGB(60, 120, 220))
 
 	shopPanel, shopList = makePanel("ShopPanel", "Магазин способностей", gui)
 	loadoutPanel, loadoutList = makePanel("LoadoutPanel", "Набор способностей", gui)
@@ -408,12 +444,18 @@ function ShopController.start()
 	shopButton.Activated:Connect(function()
 		loadoutPanel.Visible = false
 		shopPanel.Visible = not shopPanel.Visible
+		if shopPanel.Visible then
+			UI.popIn(shopPanel)
+		end
 	end)
 	loadoutButton.Activated:Connect(function()
 		shopPanel.Visible = false
 		selectedSlot = nil
 		renderLoadout()
 		loadoutPanel.Visible = not loadoutPanel.Visible
+		if loadoutPanel.Visible then
+			UI.popIn(loadoutPanel)
+		end
 	end)
 
 	Remotes.PlayerData.OnClientEvent:Connect(function(data: Types.DataSnapshot)

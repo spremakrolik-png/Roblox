@@ -11,6 +11,7 @@ local StatusText = require(ReplicatedStorage.Shared.StatusText)
 local Types = require(ReplicatedStorage.Shared.Types)
 local Assets = require(script.Parent.Parent.Util.Assets)
 local Build = require(script.Parent.Parent.Util.Build)
+local LobbyDecor = require(script.Parent.Parent.Util.LobbyDecor)
 local CharacterService = require(script.Parent.CharacterService)
 
 local LobbyConfig = GameConfig.Lobby
@@ -171,6 +172,7 @@ local function buildPlaceholderLobby(): Model
 		color = Color3.fromRGB(18, 20, 28),
 		parent = model,
 	})
+	LobbyDecor.decorate(model)
 	return model
 end
 

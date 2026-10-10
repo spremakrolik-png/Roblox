@@ -86,7 +86,7 @@ function SoundController.start()
 	end)
 
 	Remotes.DeathEffect.OnClientEvent:Connect(function(position: Vector3, _color: Color3, kind: string?)
-		SoundController.play(if kind == "Hit" then "TrapFired" else "Death", position)
+		SoundController.play(if kind == "Hit" then "TrapFired" elseif kind == "Revive" then "Go" else "Death", position)
 	end)
 	Remotes.FinishEffect.OnClientEvent:Connect(function(position: Vector3, vip: boolean)
 		SoundController.play(if vip then "VipFinish" else "Finish", position)
