@@ -110,7 +110,7 @@ local function build(): Elements
 	feed.BackgroundTransparency = 1
 	feed.AnchorPoint = Vector2.new(1, 0)
 	feed.Position = UDim2.new(1, -10, 0, 130)
-	feed.Size = UDim2.new(0.32, 0, 0.4, 0)
+	feed.Size = UDim2.fromScale(0.32, 0.4)
 	UI.sizeLimit(feed, Vector2.new(200, 100), Vector2.new(380, 320))
 	local feedLayout = Instance.new("UIListLayout")
 	feedLayout.SortOrder = Enum.SortOrder.LayoutOrder

@@ -361,6 +361,13 @@ end
 
 function LobbyService.init()
 	setupLobby()
+	-- Characters that spawned before the lobby existed (e.g. solo Play in an empty place) start in the void.
+	for _, player in Players:GetPlayers() do
+		local root = CharacterService.getRoot(player)
+		if root and not LobbyService.isInLobby(root.Position) then
+			task.spawn(CharacterService.teleport, player, LobbyService.returnCFrame())
+		end
+	end
 	task.spawn(function()
 		while true do
 			local ok, err = pcall(refresh)

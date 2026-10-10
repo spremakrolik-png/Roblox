@@ -6,17 +6,37 @@
 
 **Статус: Фаза 1 — игровой цикл и роли.** Трасса пока из 5 фиксированных сегментов-связок без ловушек.
 
-## Быстрый старт
+## Проверка на ПК (Windows)
 
-1. Установи [Rokit](https://github.com/rojo-rbx/rokit) и в папке проекта выполни `rokit install`
-   (поставит Rojo, StyLua и Selene из `rokit.toml`).
-2. Запусти `rojo serve`.
-3. В Roblox Studio открой новый place (шаблон Baseplate подойдёт) и в плагине Rojo нажми **Connect**.
-4. Проверь, что у `Workspace` включён **StreamingEnabled**: Rojo выставляет его из `default.project.json`,
-   но если галочки нет — поставь вручную (сервер напишет предупреждение в Output).
-5. **Test → Clients and Servers**, 3 игрока, **Start**.
+### Способ 1: готовый файл места, ничего не устанавливая
 
-Лимит 12 игроков задаётся в Game Settings → Places → Max Players (при публикации).
+1. Возьми `TrapRunner.rbxlx` (или собери сам: `rojo build default.project.json -o TrapRunner.rbxlx`).
+2. Открой его в Roblox Studio: двойной клик по файлу или **File → Open from File**.
+   В режиме редактирования мир пустой — лобби и трасса строятся скриптами при запуске.
+3. Вкладка **Test** → блок **Clients and Servers**: выбери **Local Server**, **3 Players** → **Start**.
+   Откроются 4 окна: сервер и 3 клиента. На слабом ПК хватит 2 игроков (минимум для раунда).
+4. В каждом окне клиента дойди до круга: синий — RUNNER, красный — TRAPPER.
+5. В окне сервера открой **View → Output**: там `[Main] Trap Runner server started`,
+   `[Track] seed = …`, `[Round] Over: …`. Ошибки показываются красным.
+6. Закончить тест: кнопка **Cleanup** (Stop) в окне сервера.
+
+Этот способ годится, чтобы посмотреть игру. Изменения, сделанные в Studio, в репозиторий не попадут.
+
+### Способ 2: живая синхронизация через Rojo (для разработки)
+
+1. Установи Rojo: `winget install Rojo.Rojo` или архив со страницы
+   [Rojo Releases](https://github.com/rojo-rbx/rojo/releases).
+   Можно через [Rokit](https://github.com/rojo-rbx/rokit): `winget install Rojo.Rokit`, затем в папке проекта
+   `rokit install` (поставит Rojo, StyLua и Selene из `rokit.toml`).
+2. Скачай проект: `git clone -b claude/roblox-game-y43pbn https://github.com/spremakrolik-png/Roblox`
+   или **Code → Download ZIP** на странице ветки.
+3. В папке проекта один раз выполни `rojo plugin install` (ставит плагин Rojo в Studio), потом `rojo serve`.
+4. В Studio создай место из шаблона **Baseplate**, на вкладке **Plugins** нажми **Rojo → Connect**.
+   Скрипты появятся в Studio и будут обновляться при каждом сохранении файла.
+5. Проверь, что у `Workspace` включён **StreamingEnabled** (Rojo выставляет его сам; если нет — поставь вручную).
+6. Запусти тест, как в шаге 3 первого способа.
+
+Лимит 12 игроков задаётся в Game Settings → Places → Max Players (после публикации).
 
 ## Как проверить Фазу 1
 

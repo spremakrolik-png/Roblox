@@ -52,10 +52,10 @@ function CharacterService.ensureCharacter(player: Player): boolean
 		return false
 	end
 	local ok, err = pcall(function()
-		player:LoadCharacter()
+		player:LoadCharacterAsync()
 	end)
 	if not ok then
-		warn(`[Character] LoadCharacter failed for {player.Name}: {err}`)
+		warn(`[Character] LoadCharacterAsync failed for {player.Name}: {err}`)
 	end
 	return CharacterService.isAlive(player)
 end
