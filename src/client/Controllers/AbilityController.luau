@@ -201,7 +201,8 @@ local function rebuild(states: { Types.AbilitySlotState })
 			position = UDim2.new(0, height, 0.1, 0),
 			alignX = Enum.TextXAlignment.Left,
 			maxTextSize = 20,
-		})
+		}).TextWrapped =
+			true
 		local cooldown = UI.label({
 			name = "Cooldown",
 			parent = button,

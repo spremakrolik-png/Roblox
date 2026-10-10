@@ -39,14 +39,22 @@ local function hint(): (string, Color3)
 		return "Идёт раунд — встань в круг, чтобы сыграть в следующем",
 			UI.Colors.Muted
 	end
-	return "Встань в круг, чтобы играть", UI.Colors.Muted
+	-- The status panel at the top already says "stand in a circle".
+	return "", UI.Colors.Muted
 end
 
 local spinning: { [BasePart]: CFrame } = {}
+local spinningModels: { [Model]: CFrame } = {}
 
 local function addSpinner(instance: Instance)
 	if instance:IsA("BasePart") then
 		spinning[instance] = instance.CFrame
+	end
+end
+
+local function addModelSpinner(instance: Instance)
+	if instance:IsA("Model") then
+		spinningModels[instance] = instance:GetPivot()
 	end
 end
 
@@ -62,6 +70,15 @@ local function spin()
 			* CFrame.new(0, math.sin(t * speed * 1.5) * 1.2, 0)
 			* CFrame.Angles(0, t * speed, t * speed * 0.5)
 	end
+	-- Display models on the ability stands turn slowly and bob.
+	for model, home in spinningModels do
+		if not model.Parent then
+			spinningModels[model] = nil
+			continue
+		end
+		local speed = (model:GetAttribute("Spin") or 1) :: number
+		model:PivotTo(home * CFrame.new(0, math.sin(t * 1.6) * 0.3, 0) * CFrame.Angles(0, t * speed, 0))
+	end
 end
 
 function LobbyController.start()
@@ -69,6 +86,10 @@ function LobbyController.start()
 		addSpinner(instance)
 	end
 	CollectionService:GetInstanceAddedSignal("LobbySpin"):Connect(addSpinner)
+	for _, instance in CollectionService:GetTagged("LobbySpinModel") do
+		addModelSpinner(instance)
+	end
+	CollectionService:GetInstanceAddedSignal("LobbySpinModel"):Connect(addModelSpinner)
 	RunService.RenderStepped:Connect(spin)
 
 	local gui = UI.screen("Lobby", 5)

@@ -12,6 +12,7 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Assets = require(script.Parent.Parent.Util.Assets)
 local Build = require(script.Parent.Parent.Util.Build)
 local LobbyDecor = require(script.Parent.Parent.Util.LobbyDecor)
+local LobbyFurniture = require(script.Parent.Parent.Util.LobbyFurniture)
 local CharacterService = require(script.Parent.CharacterService)
 
 local LobbyConfig = GameConfig.Lobby
@@ -43,7 +44,8 @@ local rng = Random.new()
 -- Building ------------------------------------------------------------------
 
 local function addCircleLabel(part: BasePart, kind: CircleKind, color: Color3): TextLabel
-	local billboard = Build.billboard(part, 7, Vector2.new(16, 7))
+	-- High above the circle, so the text never touches the floor or the players standing in it.
+	local billboard = Build.billboard(part, 13, Vector2.new(14, 6))
 	Build.textLabel(
 		"Title",
 		billboard,
@@ -124,7 +126,7 @@ local function buildPlaceholderLobby(): Model
 		size = Vector3.new(size, 2, size),
 		cframe = CFrame.new(origin + Vector3.new(0, -1, 0)),
 		color = LobbyConfig.FloorColor,
-		material = Enum.Material.Slate,
+		material = Enum.Material.SmoothPlastic,
 		parent = model,
 	})
 	for _, side in { Vector3.xAxis, -Vector3.xAxis, Vector3.zAxis, -Vector3.zAxis } do
@@ -173,6 +175,7 @@ local function buildPlaceholderLobby(): Model
 		parent = model,
 	})
 	LobbyDecor.decorate(model)
+	LobbyFurniture.build(model)
 	return model
 end
 

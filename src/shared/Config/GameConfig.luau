@@ -49,8 +49,16 @@ local GameConfig = {
 		BoardOffset = Vector3.new(0, 16, 69),
 		RunnerColor = Color3.fromRGB(40, 150, 255),
 		TrapperColor = Color3.fromRGB(255, 60, 60),
-		FloorColor = Color3.fromRGB(46, 49, 60),
-		WallColor = Color3.fromRGB(32, 34, 44),
+		-- Lobby features (offsets from Origin, at floor level)
+		AbilityStandX = 57, -- runner abilities along -X, trapper abilities along +X, facing the centre
+		AbilityStandFirstZ = -32,
+		AbilityStandSpacing = 15,
+		PointsBoardOffset = Vector3.new(-26, 0, -66),
+		WinsBoardOffset = Vector3.new(26, 0, -66),
+		WardrobeOffset = Vector3.new(-47, 0, 50),
+		StatsBoardOffset = Vector3.new(47, 0, 50),
+		FloorColor = Color3.fromRGB(196, 192, 210),
+		WallColor = Color3.fromRGB(238, 234, 246),
 	},
 
 	-- Track ---------------------------------------------------------------

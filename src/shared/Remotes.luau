@@ -23,7 +23,8 @@ export type Remotes = {
 	SpectateRequest: RemoteEvent,
 	-- server -> one client: (snapshot: Types.DataSnapshot) points, owned abilities, loadouts
 	PlayerData: RemoteEvent,
-	-- client -> server: ("Buy", abilityId) or ("Equip", role, slot, abilityId or "")
+	-- client -> server: ("Buy", abilityId), ("Equip", role, slot, abilityId or ""),
+	-- ("BuyCosmetic", cosmeticId) or ("EquipCosmetic", kind, cosmeticId or "")
 	ShopRequest: RemoteEvent,
 	-- server -> one client: (ok: boolean, message: string) answer to a shop request
 	ShopResult: RemoteEvent,

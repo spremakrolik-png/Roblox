@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Abilities = require(ReplicatedStorage.Shared.Config.Abilities)
+local Cosmetics = require(ReplicatedStorage.Shared.Config.Cosmetics)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -26,6 +27,10 @@ local TEMPLATE: Types.ProfileData = {
 	Loadouts = { Runner = {}, Trapper = {} },
 	Receipts = {},
 	SecondChances = 0,
+	Cosmetics = {
+		Owned = {},
+		Equipped = { Trail = "", Hat = "", Aura = "" },
+	},
 	Stats = {
 		Rounds = 0,
 		Finishes = 0,
@@ -114,6 +119,12 @@ function PlayerDataService.push(player: Player)
 			table.insert(owned, id)
 		end
 	end
+	local ownedCosmetics: { string } = {}
+	for id, isOwned in data.Cosmetics.Owned do
+		if isOwned then
+			table.insert(ownedCosmetics, id)
+		end
+	end
 	local snapshot: Types.DataSnapshot = {
 		points = data.Points,
 		owned = owned,
@@ -123,6 +134,8 @@ function PlayerDataService.push(player: Player)
 		},
 		slots = PlayerDataService.slotCount(player),
 		secondChances = data.SecondChances,
+		cosmetics = { owned = ownedCosmetics, equipped = table.clone(data.Cosmetics.Equipped) },
+		stats = table.clone(data.Stats),
 	}
 	updateLeaderstats(player, data.Points)
 	Remotes.PlayerData:FireClient(player, snapshot)
@@ -226,6 +239,50 @@ local function equip(player: Player, data: Types.ProfileData, role: unknown, slo
 	PlayerDataService.push(player)
 end
 
+-- Wardrobe ------------------------------------------------------------------------------
+
+local function buyCosmetic(player: Player, data: Types.ProfileData, id: unknown)
+	if typeof(id) ~= "string" then
+		return
+	end
+	local def = Cosmetics.byId[id]
+	if not def then
+		return
+	end
+	if data.Cosmetics.Owned[def.id] then
+		reply(player, false, "Уже куплено")
+		return
+	end
+	if data.Points < def.price then
+		reply(player, false, `Не хватает очков: нужно {def.price}`)
+		return
+	end
+	data.Points -= def.price
+	data.Cosmetics.Owned[def.id] = true
+	local equipped = data.Cosmetics.Equipped :: any
+	equipped[def.kind] = def.id -- wear it right away
+	PlayerDataService.push(player)
+	reply(player, true, `Куплено: {def.name}`)
+end
+
+local function equipCosmetic(player: Player, data: Types.ProfileData, kind: unknown, id: unknown)
+	if kind ~= "Trail" and kind ~= "Hat" and kind ~= "Aura" then
+		return
+	end
+	if typeof(id) ~= "string" then
+		return
+	end
+	if id ~= "" then
+		local def = Cosmetics.byId[id]
+		if not def or def.kind ~= kind or not data.Cosmetics.Owned[def.id] then
+			return
+		end
+	end
+	local equipped = data.Cosmetics.Equipped :: any
+	equipped[kind] = id
+	PlayerDataService.push(player)
+end
+
 local function onShopRequest(player: Player, action: unknown, a: unknown, b: unknown, c: unknown)
 	local now = os.clock()
 	if now - (lastShopRequest[player] or 0) < SHOP_RATE_LIMIT then
@@ -240,6 +297,10 @@ local function onShopRequest(player: Player, action: unknown, a: unknown, b: unk
 		buy(player, data, a)
 	elseif action == "Equip" then
 		equip(player, data, a, b, c)
+	elseif action == "BuyCosmetic" then
+		buyCosmetic(player, data, a)
+	elseif action == "EquipCosmetic" then
+		equipCosmetic(player, data, a, b)
 	end
 end
 
@@ -337,6 +398,15 @@ local function onPlayerAdded(player: Player)
 	end
 	if type(data.Receipts) ~= "table" then
 		data.Receipts = {}
+	end
+	-- Reconcile fills missing keys, but not inside a table an older save already has.
+	local cosmetics = data.Cosmetics :: any
+	cosmetics.Owned = if type(cosmetics.Owned) == "table" then cosmetics.Owned else {}
+	cosmetics.Equipped = if type(cosmetics.Equipped) == "table" then cosmetics.Equipped else {}
+	for _, kind in Cosmetics.Kinds do
+		if type(cosmetics.Equipped[kind]) ~= "string" then
+			cosmetics.Equipped[kind] = ""
+		end
 	end
 	PlayerDataService.push(player)
 end

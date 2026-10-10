@@ -219,7 +219,14 @@ export type ProfileData = {
 	Loadouts: Loadouts,
 	Receipts: { string }, -- processed purchase receipt ids, oldest first (trimmed)
 	SecondChances: number, -- bought second chances not used yet
+	Cosmetics: CosmeticData,
 	Stats: PlayerStats,
+}
+
+-- Wardrobe: owned items and what is worn ("" = nothing) per kind.
+export type CosmeticData = {
+	Owned: { [string]: boolean },
+	Equipped: { Trail: string, Hat: string, Aura: string },
 }
 
 -- What the client sees of its own data.
@@ -229,6 +236,8 @@ export type DataSnapshot = {
 	loadouts: Loadouts,
 	slots: number,
 	secondChances: number,
+	cosmetics: { owned: { string }, equipped: { Trail: string, Hat: string, Aura: string } },
+	stats: PlayerStats,
 }
 
 -- Sent to a runner right after a death: come back at the last checkpoint.

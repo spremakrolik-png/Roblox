@@ -62,19 +62,15 @@ function CharacterFx.attachCannon(character: Model)
 	local alongZ = CFrame.Angles(0, math.pi / 2, 0)
 	local barrel = fxPart("Barrel", Vector3.new(3.2, 1, 1), CANNON_METAL, Enum.Material.Metal, Enum.PartType.Cylinder)
 	weldTo(barrel, base, mount * CFrame.new(0, 0, -0.6) * alongZ, model)
-	local ring = fxPart("Ring", Vector3.new(0.35, 1.25, 1.25), CANNON_GLOW, Enum.Material.Neon, Enum.PartType.Cylinder)
+	local ring =
+		fxPart("Ring", Vector3.new(0.3, 1.15, 1.15), CANNON_GLOW, Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
 	weldTo(ring, base, mount * CFrame.new(0, 0, -2.1) * alongZ, model)
 	local back = fxPart("Back", Vector3.new(0.9, 1.3, 1.3), CANNON_METAL, Enum.Material.Metal, Enum.PartType.Ball)
 	weldTo(back, base, mount * CFrame.new(0, 0, 1), model)
 	local strap = fxPart("Strap", Vector3.new(0.3, 0.5, 1.2), Color3.fromRGB(90, 60, 40), Enum.Material.Fabric)
 	weldTo(strap, base, mount * CFrame.new(-0.55, -0.55, 0), model)
-	local core = fxPart("Core", Vector3.new(0.7, 0.7, 0.7), CANNON_GLOW, Enum.Material.Neon, Enum.PartType.Ball)
-	weldTo(core, base, mount * CFrame.new(0, 0.5, 0.2), model)
-	local light = Instance.new("PointLight")
-	light.Color = CANNON_GLOW
-	light.Range = 6
-	light.Brightness = 1.5
-	light.Parent = core
+	local sight = fxPart("Sight", Vector3.new(0.25, 0.35, 0.6), CANNON_GLOW, Enum.Material.SmoothPlastic)
+	weldTo(sight, base, mount * CFrame.new(0, 0.6, -0.4), model)
 	local muzzle = Instance.new("Attachment")
 	muzzle.Name = "Muzzle"
 	muzzle.Parent = barrel
@@ -100,15 +96,10 @@ end
 
 -- A flash and a puff at the muzzle when a shot leaves.
 function CharacterFx.muzzleFlash(position: Vector3, parent: Instance)
-	local flash = fxPart("MuzzleFlash", Vector3.one * 1.6, CANNON_GLOW, Enum.Material.Neon, Enum.PartType.Ball)
+	local flash = fxPart("MuzzleFlash", Vector3.one * 1, CANNON_GLOW, Enum.Material.Neon, Enum.PartType.Ball)
 	flash.Anchored = true
 	flash.Position = position
-	flash.Transparency = 0.2
-	local light = Instance.new("PointLight")
-	light.Color = CANNON_GLOW
-	light.Range = 12
-	light.Brightness = 4
-	light.Parent = flash
+	flash.Transparency = 0.4
 	flash.Parent = parent
 	Debris:AddItem(flash, 0.08)
 end

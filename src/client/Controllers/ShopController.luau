@@ -422,10 +422,8 @@ function ShopController.start()
 	layout.Padding = UDim.new(0, 10)
 	layout.Parent = openButtons
 	openButtons.Parent = gui
-	local shopButton =
-		makeButton(openButtons, "🛒 МАГАЗИН", UDim2.fromOffset(150, 56), Color3.fromRGB(40, 170, 90))
-	local loadoutButton =
-		makeButton(openButtons, "🎒 НАБОР", UDim2.fromOffset(150, 56), Color3.fromRGB(60, 120, 220))
+	local shopButton = makeButton(openButtons, "МАГАЗИН", UDim2.fromOffset(150, 56), Color3.fromRGB(40, 170, 90))
+	local loadoutButton = makeButton(openButtons, "НАБОР", UDim2.fromOffset(150, 56), Color3.fromRGB(60, 120, 220))
 
 	shopPanel, shopList = makePanel("ShopPanel", "Магазин способностей", gui)
 	loadoutPanel, loadoutList = makePanel("LoadoutPanel", "Набор способностей", gui)
