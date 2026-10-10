@@ -6,6 +6,7 @@ local Services = script.Parent.Services
 local AbilityService = require(Services.AbilityService)
 local CharacterService = require(Services.CharacterService)
 local LobbyService = require(Services.LobbyService)
+local MonetizationService = require(Services.MonetizationService)
 local PlayerDataService = require(Services.PlayerDataService)
 local RoundService = require(Services.RoundService)
 local SpectateService = require(Services.SpectateService)
@@ -19,6 +20,7 @@ end
 
 CharacterService.init()
 PlayerDataService.init()
+MonetizationService.init()
 LobbyService.init()
 AbilityService.init()
 SpectateService.init()

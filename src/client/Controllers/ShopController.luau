@@ -1,19 +1,25 @@
 --!strict
--- Lobby buttons "МАГАЗИН" (buy abilities for Points) and "НАБОР" (pick which owned abilities go into
--- the Runner and Trapper slots). The server owns the data; this only shows it and sends requests.
+-- Lobby buttons "МАГАЗИН" (abilities for Points or Robux, game passes, Points packs) and "НАБОР"
+-- (pick which owned abilities go into the Runner and Trapper slots). The server owns the data; this
+-- only shows it, sends requests and opens Roblox purchase prompts.
 
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Abilities = require(ReplicatedStorage.Shared.Config.Abilities)
 local GameState = require(ReplicatedStorage.Shared.GameState)
+local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Types = require(ReplicatedStorage.Shared.Types)
 local UI = require(script.Parent.Parent.Util.UI)
+local SoundController = require(script.Parent.SoundController)
 
 local ROLES: { "Runner" | "Trapper" } = { "Runner", "Trapper" }
 local ROLE_NAMES = { Runner = "РАННЕР", Trapper = "ТРАПЕР" }
 local ROW_HEIGHT = 64
+local ROBUX_COLOR = Color3.fromRGB(30, 150, 90)
+local POINTS_COLOR = Color3.fromRGB(40, 110, 160)
 
 local player = Players.LocalPlayer
 
@@ -44,6 +50,9 @@ local function makeButton(parent: Instance, text: string, size: UDim2, color: Co
 	local constraint = Instance.new("UITextSizeConstraint")
 	constraint.MaxTextSize = 22
 	constraint.Parent = button
+	button.Activated:Connect(function()
+		SoundController.play("Click")
+	end)
 	button.Parent = parent
 	return button
 end
@@ -115,9 +124,102 @@ end
 
 -- Shop ------------------------------------------------------------------------------
 
+local function newRow(name: string, order: number): Frame
+	local row = Instance.new("Frame")
+	row.Name = name
+	row.LayoutOrder = order
+	row.Size = UDim2.new(1, -12, 0, ROW_HEIGHT)
+	row.BackgroundColor3 = Color3.fromRGB(30, 33, 45)
+	row.BorderSizePixel = 0
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 8)
+	corner.Parent = row
+	return row
+end
+
+local function rowText(row: Frame, title: string, description: string, width: number)
+	UI.label({
+		name = "Name",
+		parent = row,
+		text = title,
+		size = UDim2.new(width, -8, 0.5, 0),
+		position = UDim2.fromOffset(8, 2),
+		alignX = Enum.TextXAlignment.Left,
+		maxTextSize = 22,
+	})
+	UI.label({
+		name = "Description",
+		parent = row,
+		text = description,
+		size = UDim2.new(width, -8, 0.45, 0),
+		position = UDim2.new(0, 8, 0.5, 0),
+		color = UI.Colors.Muted,
+		font = Enum.Font.SourceSansSemibold,
+		alignX = Enum.TextXAlignment.Left,
+		maxTextSize = 18,
+	})
+end
+
+-- Game passes and Points packs. Anything without a real id is not shown.
+local function renderRobux(order: number): number
+	local passes: { Monetization.PassDef } = {}
+	for _, def in Monetization.Passes do
+		if def.assetId ~= 0 then
+			table.insert(passes, def)
+		end
+	end
+	local packs: { Monetization.PointsPack } = {}
+	for _, pack in Monetization.PointsPacks do
+		if pack.productId ~= 0 then
+			table.insert(packs, pack)
+		end
+	end
+	if #passes == 0 and #packs == 0 then
+		return order
+	end
+	order += 1
+	header(shopList, order, "ROBUX", UI.Colors.Gold)
+	for _, def in passes do
+		order += 1
+		local row = newRow(def.id, order)
+		rowText(row, def.name, def.description, 0.65)
+		local owned = player:GetAttribute(Monetization.attribute(def.id)) == true
+		local button = makeButton(
+			row,
+			if owned then "Куплено" else `R$ {def.robux}`,
+			UDim2.new(0.33, -8, 1, -12),
+			if owned then Color3.fromRGB(60, 64, 76) else ROBUX_COLOR
+		)
+		button.AnchorPoint = Vector2.new(1, 0.5)
+		button.Position = UDim2.new(1, -6, 0.5, 0)
+		button.AutoButtonColor = not owned
+		if not owned then
+			local assetId = def.assetId
+			button.Activated:Connect(function()
+				MarketplaceService:PromptGamePassPurchase(player, assetId)
+			end)
+		end
+		row.Parent = shopList
+	end
+	for index, pack in packs do
+		order += 1
+		local row = newRow(`Pack{index}`, order)
+		rowText(row, `{pack.points} очков`, "Сразу на счёт", 0.65)
+		local button = makeButton(row, `R$ {pack.robux}`, UDim2.new(0.33, -8, 1, -12), ROBUX_COLOR)
+		button.AnchorPoint = Vector2.new(1, 0.5)
+		button.Position = UDim2.new(1, -6, 0.5, 0)
+		local productId = pack.productId
+		button.Activated:Connect(function()
+			MarketplaceService:PromptProductPurchase(player, productId)
+		end)
+		row.Parent = shopList
+	end
+	return order
+end
+
 local function renderShop()
 	clear(shopList)
-	local order = 0
+	local order = renderRobux(0)
 	for _, role in ROLES do
 		order += 1
 		header(shopList, order, ROLE_NAMES[role], if role == "Runner" then UI.Colors.Runner else UI.Colors.Trapper)
@@ -126,41 +228,16 @@ local function renderShop()
 				continue
 			end
 			order += 1
-			local row = Instance.new("Frame")
-			row.Name = def.id
-			row.LayoutOrder = order
-			row.Size = UDim2.new(1, -12, 0, ROW_HEIGHT)
-			row.BackgroundColor3 = Color3.fromRGB(30, 33, 45)
-			row.BorderSizePixel = 0
-			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0, 8)
-			corner.Parent = row
-			UI.label({
-				name = "Name",
-				parent = row,
-				text = def.name,
-				size = UDim2.new(0.65, -8, 0.5, 0),
-				position = UDim2.fromOffset(8, 2),
-				alignX = Enum.TextXAlignment.Left,
-				maxTextSize = 22,
-			})
-			UI.label({
-				name = "Description",
-				parent = row,
-				text = def.description,
-				size = UDim2.new(0.65, -8, 0.45, 0),
-				position = UDim2.new(0, 8, 0.5, 0),
-				color = UI.Colors.Muted,
-				font = Enum.Font.SourceSansSemibold,
-				alignX = Enum.TextXAlignment.Left,
-				maxTextSize = 18,
-			})
 			local owned = owns(def.id)
+			local product = Monetization.AbilityProducts[def.id]
+			local robux = not owned and product ~= nil and product.productId ~= 0
+			local row = newRow(def.id, order)
+			rowText(row, def.name, def.description, if robux then 0.5 else 0.65)
 			local buy = makeButton(
 				row,
-				if owned then "Куплено" else `Купить: {def.price}`,
-				UDim2.new(0.33, -8, 1, -12),
-				if owned then Color3.fromRGB(60, 64, 76) else Color3.fromRGB(40, 140, 80)
+				if owned then "Куплено" else `{def.price} очков`,
+				UDim2.new(if robux then 0.24 else 0.33, -8, 1, -12),
+				if owned then Color3.fromRGB(60, 64, 76) else POINTS_COLOR
 			)
 			buy.AnchorPoint = Vector2.new(1, 0.5)
 			buy.Position = UDim2.new(1, -6, 0.5, 0)
@@ -168,6 +245,15 @@ local function renderShop()
 			if not owned then
 				buy.Activated:Connect(function()
 					Remotes.ShopRequest:FireServer("Buy", def.id)
+				end)
+			end
+			if robux and product then
+				local productId = product.productId
+				local robuxButton = makeButton(row, `R$ {product.robux}`, UDim2.new(0.24, -8, 1, -12), ROBUX_COLOR)
+				robuxButton.AnchorPoint = Vector2.new(1, 0.5)
+				robuxButton.Position = UDim2.new(0.76, -6, 0.5, 0)
+				robuxButton.Activated:Connect(function()
+					MarketplaceService:PromptProductPurchase(player, productId)
 				end)
 			end
 			row.Parent = shopList
@@ -336,6 +422,11 @@ function ShopController.start()
 	end)
 	Remotes.ShopResult.OnClientEvent:Connect(function(ok: boolean, message: string)
 		showToast(ok, message)
+	end)
+	player.AttributeChanged:Connect(function(name: string)
+		if string.sub(name, 1, 5) == "Pass_" then
+			renderShop()
+		end
 	end)
 
 	-- The shop is for the lobby: hidden while the player has a role in a round.

@@ -11,6 +11,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local StatusText = require(ReplicatedStorage.Shared.StatusText)
 local Types = require(ReplicatedStorage.Shared.Types)
 local TrapsConfig = require(ReplicatedStorage.Shared.Config.Traps)
+local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 local TrackGenerator = require(script.Parent.Parent.Track.TrackGenerator)
 local CharacterService = require(script.Parent.CharacterService)
 local LobbyService = require(script.Parent.LobbyService)
@@ -67,6 +68,8 @@ type Round = {
 local RoundService = {}
 
 local lastTrapperUserId: number? = nil
+local lastTrapperHud = "" -- what the trapper's HUD shows, to send only changes
+local TRAPPER_HUD_TRAPS = 5
 
 -- What is currently running, so an unexpected error can still clean up.
 local active: { round: Round?, track: Types.Track?, participants: { Player } } = {
@@ -228,6 +231,11 @@ local function runCountdown(roster: Roster): Types.Track?
 	active.track = track
 	GameState.write(Keys.ThemeName, track.theme.name)
 	GameState.write(Keys.CheckpointCount, #track.checkpoints)
+	local marks: { string } = {}
+	for _, checkpoint in track.checkpoints do
+		table.insert(marks, string.format("%.4f", checkpoint.distance / track.totalLength))
+	end
+	GameState.write(Keys.CheckpointMarks, table.concat(marks, ","))
 	TrapService.prepare(track)
 
 	while os.clock() < deadline do
@@ -284,6 +292,11 @@ local function finish(round: Round, runner: RunnerState)
 	runner.player:SetAttribute(PlayerKeys.Place, runner.place)
 	runner.player:SetAttribute(PlayerKeys.Progress, 1)
 	AbilityService.refresh(runner.player)
+	local root = CharacterService.getRoot(runner.player)
+	if root then
+		local vip = runner.player:GetAttribute(Monetization.attribute("VIP")) == true
+		Remotes.FinishEffect:FireAllClients(root.Position, vip)
+	end
 	feed(
 		string.format(
 			"%s финиширует: %d место (%s)",
@@ -375,6 +388,49 @@ local function publishProgress(round: Round)
 	end
 	GameState.write(Keys.AliveRunners, alive)
 	GameState.write(Keys.LeaderProgress, leader)
+
+	-- The trapper gets a dot on the progress bar and their own HUD: traps ahead and the leader gap.
+	local trapper = round.trapper
+	local root = if inGame(trapper) and not round.trapperLeft then CharacterService.getRoot(trapper) else nil
+	if not root then
+		return
+	end
+	local distance, trapperSegment = TrackGenerator.distanceAlong(round.track, root.Position)
+	local trapperProgress = math.clamp(distance / round.track.totalLength, 0, 1)
+	if math.abs(((trapper:GetAttribute(PlayerKeys.Progress) or 0) :: number) - trapperProgress) > 0.002 then
+		trapper:SetAttribute(PlayerKeys.Progress, trapperProgress)
+	end
+	local leaderSegment = 0
+	for _, runner in round.runners do
+		if runner.status == "Alive" then
+			leaderSegment = math.max(leaderSegment, runner.furthest)
+		end
+	end
+	local traps: { Types.TrapperHudTrap } = {}
+	for _, entry in TrapService.states() do
+		local away = entry.trap.segmentIndex - trapperSegment
+		if away >= 0 and #traps < TRAPPER_HUD_TRAPS then
+			table.insert(traps, {
+				name = TrapsConfig.info(entry.trap.trapType).name,
+				segmentsAway = away,
+				state = entry.state,
+			})
+		end
+	end
+	local hud: Types.TrapperHud = {
+		trapperSegment = trapperSegment,
+		leaderSegment = leaderSegment,
+		totalSegments = #round.track.segments,
+		traps = traps,
+	}
+	local key = `{trapperSegment}|{leaderSegment}`
+	for _, trap in traps do
+		key ..= `|{trap.name}{trap.segmentsAway}{trap.state}`
+	end
+	if key ~= lastTrapperHud then
+		lastTrapperHud = key
+		Remotes.TrapperHud:FireClient(trapper, hud)
+	end
 end
 
 -- Returns the winner once the round is over, nil while it continues.
@@ -738,6 +794,7 @@ local function cleanup(round: Round?, track: Types.Track?, participants: { Playe
 
 	TrapService.clear()
 	AbilityService.reset()
+	lastTrapperHud = ""
 	SpectateService.reset()
 	if track then
 		TrackGenerator.destroy(track)
@@ -745,6 +802,7 @@ local function cleanup(round: Round?, track: Types.Track?, participants: { Playe
 	GameState.write(Keys.TrapperName, "")
 	GameState.write(Keys.ThemeName, "")
 	GameState.write(Keys.CheckpointCount, 0)
+	GameState.write(Keys.CheckpointMarks, "")
 	GameState.write(Keys.AliveRunners, 0)
 	GameState.write(Keys.TotalRunners, 0)
 	GameState.write(Keys.LeaderProgress, 0)

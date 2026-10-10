@@ -456,4 +456,19 @@ function TrackGenerator.distanceInSegment(segment: Types.TrackSegment, position:
 	return math.clamp(-relative.Z, 0, segment.def.length)
 end
 
+-- How far along the track (studs from the start line) a point beside it is; works for the
+-- trapper's corridor too. Also returns the index of the segment beside the point (0 = before the first).
+function TrackGenerator.distanceAlong(track: Types.Track, position: Vector3): (number, number)
+	local best = 0
+	local index = 0
+	for _, segment in track.segments do
+		local along = -segment.entry:PointToObjectSpace(position).Z
+		if along >= 0 then
+			best = math.max(best, segment.startDistance + math.min(along, segment.def.length))
+			index = segment.index
+		end
+	end
+	return best, index
+end
+
 return TrackGenerator

@@ -24,6 +24,7 @@ GameState.Keys = table.freeze({
 	TrapperName = "TrapperName",
 	ThemeName = "ThemeName",
 	CheckpointCount = "CheckpointCount",
+	CheckpointMarks = "CheckpointMarks", -- checkpoint positions as track fractions, "0.25,0.5"
 })
 
 -- Attributes on each Player.
@@ -62,6 +63,7 @@ local DEFAULTS: { [string]: any } = {
 	TrapperName = "",
 	ThemeName = "",
 	CheckpointCount = 0,
+	CheckpointMarks = "",
 }
 
 local folder: Folder

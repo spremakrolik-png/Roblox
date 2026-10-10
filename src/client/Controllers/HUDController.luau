@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 
 local GameState = require(ReplicatedStorage.Shared.GameState)
+local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local StatusText = require(ReplicatedStorage.Shared.StatusText)
 local Types = require(ReplicatedStorage.Shared.Types)
@@ -385,12 +386,30 @@ local function onResults(results: Types.RoundResults)
 	)
 
 	local order = 0
+	-- The local player's own reward comes first.
+	for _, award in results.awards do
+		if award.userId == player.UserId then
+			order += 1
+			local doubled = player:GetAttribute(Monetization.attribute("DoublePoints")) == true
+			addResultLine(
+				order,
+				`Твоя награда: +{award.points} очков{if doubled then " (x2)" else ""}`,
+				UI.Colors.Gold
+			)
+		end
+	end
 	for _, finisher in results.finishers do
 		order += 1
 		local color = if finisher.place <= 3 then UI.Colors.Gold else UI.Colors.Text
 		addResultLine(
 			order,
-			string.format("%d место  %s  %s", finisher.place, finisher.name, StatusText.formatTime(finisher.time)),
+			string.format(
+				"%d место  %s%s  %s",
+				finisher.place,
+				finisher.name,
+				if finisher.userId == player.UserId then " (ты)" else "",
+				StatusText.formatTime(finisher.time)
+			),
 			color
 		)
 	end
@@ -400,9 +419,10 @@ local function onResults(results: Types.RoundResults)
 	end
 	for _, entry in results.eliminated do
 		order += 1
+		local name = if entry.userId == player.UserId then `{entry.name} (ты)` else entry.name
 		local text = if entry.cause
-			then `{entry.name} — {entry.cause}`
-			else string.format("%s — %s", entry.name, ELIMINATION_LABEL[entry.reason] or "выбыл(а)")
+			then `{name} — {entry.cause}`
+			else string.format("%s — %s", name, ELIMINATION_LABEL[entry.reason] or "выбыл(а)")
 		addResultLine(order, text, UI.Colors.Death)
 	end
 	if order == 0 then

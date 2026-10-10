@@ -16,7 +16,8 @@ export type Remotes = {
 	RoundResults: RemoteEvent,
 	-- server -> all clients: (alert: Types.TrapAlert) when a trap starts its telegraph
 	TrapActivated: RemoteEvent,
-	-- server -> all clients: (position: Vector3, color: Color3) cartoon burst where a runner died
+	-- server -> all clients: (position: Vector3, color: Color3, kind: "Death" | "Hit"?) cartoon burst
+	-- where a runner died (or was hit by the Slow Cannon)
 	DeathEffect: RemoteEvent,
 	-- client -> server: (targetUserId: number) whom to spectate, 0 = stop
 	SpectateRequest: RemoteEvent,
@@ -28,13 +29,17 @@ export type Remotes = {
 	ShopResult: RemoteEvent,
 	-- client -> server: (slot: number, aim: Vector3?) use an equipped ability
 	UseAbility: RemoteEvent,
-	-- server -> one client: (slots: { Types.AbilitySlotState }) equipped abilities this round
+	-- server -> one client: (slots: { Types.AbilitySlotState }) the abilities usable right now (round or lobby)
 	AbilityState: RemoteEvent,
 	-- server -> one client: (seconds: number) Blind Flash fog on the screen
 	BlindFlash: RemoteEvent,
 	-- server -> one client: ("FeatherFall", seconds, maxFallSpeed) effects the character's owner
 	-- must simulate (the client owns its character's physics)
 	AbilityEffect: RemoteEvent,
+	-- server -> the trapper: (hud: Types.TrapperHud) traps ahead and the leader gap, sent on change
+	TrapperHud: RemoteEvent,
+	-- server -> all clients: (position: Vector3, vip: boolean) a runner crossed the finish line
+	FinishEffect: RemoteEvent,
 }
 
 local NAMES = {
@@ -51,6 +56,8 @@ local NAMES = {
 	"AbilityState",
 	"BlindFlash",
 	"AbilityEffect",
+	"TrapperHud",
+	"FinishEffect",
 }
 
 local folder: Instance

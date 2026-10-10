@@ -12,6 +12,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Types = require(ReplicatedStorage.Shared.Types)
 local UI = require(script.Parent.Parent.Util.UI)
+local SoundController = require(script.Parent.SoundController)
 
 local BUTTON_SIZE = 84
 local COMPACT_SIZE = 56 -- lobby slots can hold up to six abilities
@@ -69,6 +70,7 @@ local function use(slot: number)
 			end
 			local aim = if state.id == "SlowCannon" then aimDirection() else nil
 			Remotes.UseAbility:FireServer(slot, aim)
+			SoundController.play("Ability")
 			return
 		end
 	end

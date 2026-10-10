@@ -1,6 +1,7 @@
 --!strict
 -- Saved player data through ProfileStore (session-locked): Points, owned abilities, loadouts for both
--- roles, processed receipts and stats. Also the shop: buying abilities for Points and equipping them.
+-- roles, processed receipts and stats. Also the shop: buying abilities for Points and equipping them,
+-- and the safe granting of Robux purchases (receipts are saved before they are confirmed).
 -- In Studio without API access ProfileStore falls back to a temporary in-memory store by itself.
 
 local Players = game:GetService("Players")
@@ -9,12 +10,14 @@ local RunService = game:GetService("RunService")
 
 local Abilities = require(ReplicatedStorage.Shared.Config.Abilities)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
+local Monetization = require(ReplicatedStorage.Shared.Config.Monetization)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Types = require(ReplicatedStorage.Shared.Types)
 local ProfileStore = require(script.Parent.Parent.Vendor.ProfileStore)
 
 local STORE_NAME = "TrapRunnerPlayers_v1"
 local SHOP_RATE_LIMIT = 0.2
+local LOAD_WAIT_SECONDS = 30 -- how long a receipt waits for the buyer's data to load
 local ROLES = { "Runner", "Trapper" }
 
 local TEMPLATE: Types.ProfileData = {
@@ -152,6 +155,19 @@ local function reply(player: Player, ok: boolean, message: string)
 	Remotes.ShopResult:FireClient(player, ok, message)
 end
 
+-- Marks an ability owned and puts it straight into the first empty slot of its role.
+local function giveAbility(player: Player, data: Types.ProfileData, def: Types.AbilityDef)
+	data.Owned[def.id] = true
+	local loadout = PlayerDataService.getLoadout(player, def.role)
+	for slot, id in loadout do
+		if id == "" then
+			loadout[slot] = def.id
+			Abilities.setLoadout(data.Loadouts, def.role, loadout)
+			break
+		end
+	end
+end
+
 local function buy(player: Player, data: Types.ProfileData, abilityId: unknown)
 	if typeof(abilityId) ~= "string" then
 		return
@@ -169,16 +185,7 @@ local function buy(player: Player, data: Types.ProfileData, abilityId: unknown)
 		return
 	end
 	data.Points -= def.price
-	data.Owned[def.id] = true
-	-- Put a fresh purchase straight into the first empty slot of its role.
-	local loadout = PlayerDataService.getLoadout(player, def.role)
-	for slot, id in loadout do
-		if id == "" then
-			loadout[slot] = def.id
-			Abilities.setLoadout(data.Loadouts, def.role, loadout)
-			break
-		end
-	end
+	giveAbility(player, data, def)
 	PlayerDataService.push(player)
 	reply(player, true, `Куплено: {def.name}`)
 end
@@ -234,6 +241,64 @@ local function onShopRequest(player: Player, action: unknown, a: unknown, b: unk
 	end
 end
 
+-- Robux purchases ---------------------------------------------------------------------
+
+-- Gives an ability bought for Robux. Returns false if it was already owned (the caller compensates).
+function PlayerDataService.grantAbility(player: Player, data: Types.ProfileData, def: Types.AbilityDef): boolean
+	if data.Owned[def.id] then
+		return false
+	end
+	giveAbility(player, data, def)
+	return true
+end
+
+-- Grants a developer product exactly once. The receipt id goes into the save together with the
+-- reward, and the purchase is confirmed only after a save that contains it, so neither a crash nor a
+-- second server can grant it twice or lose it.
+function PlayerDataService.processPurchase(
+	player: Player,
+	purchaseId: string,
+	grant: (data: Types.ProfileData) -> ()
+): Enum.ProductPurchaseDecision
+	local waitedUntil = os.clock() + LOAD_WAIT_SECONDS
+	while profiles[player] == nil and player.Parent == Players and os.clock() < waitedUntil do
+		task.wait(0.5)
+	end
+	local profile = profiles[player]
+	if profile == nil or not profile:IsActive() then
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+	local data = profile.Data :: Types.ProfileData
+	if not table.find(data.Receipts, purchaseId) then
+		local ok, err = pcall(grant, data)
+		if not ok then
+			warn(`[Data] purchase {purchaseId} for {player.Name} failed: {err}`)
+			return Enum.ProductPurchaseDecision.NotProcessedYet
+		end
+		while #data.Receipts >= Monetization.ReceiptLogSize do
+			table.remove(data.Receipts, 1)
+		end
+		table.insert(data.Receipts, purchaseId)
+		PlayerDataService.push(player)
+	end
+
+	local function saved(lastSaved: any): boolean
+		local receipts = if type(lastSaved) == "table" then lastSaved.Receipts else nil
+		return type(receipts) == "table" and table.find(receipts, purchaseId) ~= nil
+	end
+	if saved(profile.LastSavedData) then
+		return Enum.ProductPurchaseDecision.PurchaseGranted
+	end
+	profile:Save()
+	while profile:IsActive() do
+		local lastSaved = profile.OnAfterSave:Wait()
+		if saved(lastSaved) then
+			return Enum.ProductPurchaseDecision.PurchaseGranted
+		end
+	end
+	return Enum.ProductPurchaseDecision.NotProcessedYet
+end
+
 -- Sessions ----------------------------------------------------------------------------
 
 local function onPlayerAdded(player: Player)
@@ -267,6 +332,9 @@ local function onPlayerAdded(player: Player)
 		if type((data.Loadouts :: any)[role]) ~= "table" then
 			(data.Loadouts :: any)[role] = {}
 		end
+	end
+	if type(data.Receipts) ~= "table" then
+		data.Receipts = {}
 	end
 	PlayerDataService.push(player)
 end

@@ -171,7 +171,7 @@ local function slowRunner(def: Types.AbilityDef, target: Player)
 	CharacterService.addSpeedModifier(target, "SlowCannon", param(def, "SlowMultiplier"), param(def, "SlowSeconds"))
 	local root = CharacterService.getRoot(target)
 	if root then
-		Remotes.DeathEffect:FireAllClients(root.Position, CANNON_COLOR)
+		Remotes.DeathEffect:FireAllClients(root.Position, CANNON_COLOR, "Hit")
 	end
 end
 

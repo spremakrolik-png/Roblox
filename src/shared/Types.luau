@@ -113,6 +113,20 @@ export type TrackTrap = {
 	buttonCFrame: CFrame, -- floor point in the trapper corridor at the start of the segment
 }
 
+-- The trapper's HUD: traps ahead and how far the leading runner is.
+export type TrapperHudTrap = {
+	name: string,
+	segmentsAway: number, -- 0 = the trapper is beside it
+	state: "Ready" | "Running" | "Used",
+}
+
+export type TrapperHud = {
+	trapperSegment: number,
+	leaderSegment: number,
+	totalSegments: number,
+	traps: { TrapperHudTrap },
+}
+
 -- Sent to every client when a trap fires.
 export type TrapAlert = {
 	trapType: TrapType,
@@ -203,7 +217,7 @@ export type ProfileData = {
 	Points: number,
 	Owned: { [string]: boolean },
 	Loadouts: Loadouts,
-	Receipts: { [string]: boolean }, -- processed purchase receipt ids (Phase 5)
+	Receipts: { string }, -- processed purchase receipt ids, oldest first (trimmed)
 	Stats: PlayerStats,
 }
 

@@ -10,9 +10,12 @@ ReplicatedStorage:WaitForChild("Remotes")
 
 local Controllers = script.Parent:WaitForChild("Controllers")
 
+require(Controllers:WaitForChild("SoundController")).start()
 require(Controllers:WaitForChild("HUDController")).start()
+require(Controllers:WaitForChild("ProgressController")).start()
 require(Controllers:WaitForChild("LobbyController")).start()
 require(Controllers:WaitForChild("EffectsController")).start()
 require(Controllers:WaitForChild("SpectateController")).start()
 require(Controllers:WaitForChild("AbilityController")).start()
 require(Controllers:WaitForChild("ShopController")).start()
+require(Controllers:WaitForChild("VipController")).start()

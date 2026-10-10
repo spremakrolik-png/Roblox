@@ -251,6 +251,19 @@ function TrapService.rechargeLast(player: Player): boolean
 	return false
 end
 
+-- Every trap in track order with its button state (for the trapper's HUD).
+function TrapService.states(): { { trap: Types.TrackTrap, state: "Ready" | "Running" | "Used" } }
+	local list: { { trap: Types.TrackTrap, state: "Ready" | "Running" | "Used" } } = {}
+	for _, button in buttons do
+		local state: "Ready" | "Running" | "Used" = if button.running
+			then "Running"
+			elseif button.used then "Used"
+			else "Ready"
+		table.insert(list, { trap = button.trap, state = state })
+	end
+	return list
+end
+
 -- Arms every unused button for this round.
 function TrapService.start(roundContext: RoundContext)
 	context = roundContext
