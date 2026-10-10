@@ -48,6 +48,7 @@ type Round = {
 	trapperKills: number,
 	startedAt: number, -- os.clock() when the gates opened
 	trapperLeft: boolean,
+	closed: boolean, -- set when the round has a winner; round handlers ignore events after that
 	connections: { RBXScriptConnection },
 }
 
@@ -335,14 +336,18 @@ local function watchRunner(round: Round, runner: RunnerState)
 	local humanoid = CharacterService.getHumanoid(player)
 	if humanoid then
 		connect(round, humanoid.Died, function()
-			eliminate(runner, "Died")
+			if not round.closed then
+				eliminate(runner, "Died")
+			end
 		end)
 	end
 	-- Covers characters removed without a Died event. When the player is leaving the server this
 	-- can fire before PlayerRemoving, so wait a moment and let "Left" win in that case.
 	connect(round, player.CharacterRemoving, function()
 		task.delay(0.5, function()
-			eliminate(runner, if inGame(player) then "Died" else "Left")
+			if not round.closed then
+				eliminate(runner, if inGame(player) then "Died" else "Left")
+			end
 		end)
 	end)
 end
@@ -352,7 +357,7 @@ local function watchTrapper(round: Round)
 	connect(round, round.trapper.CharacterAdded, function(character: Model)
 		task.defer(function()
 			character:WaitForChild("HumanoidRootPart", 10)
-			if round.trapperLeft or not character.Parent then
+			if round.closed or round.trapperLeft or not character.Parent then
 				return
 			end
 			CharacterService.setWalkSpeed(round.trapper, GameConfig.TrapperWalkSpeed)
@@ -372,6 +377,7 @@ local function startRound(track: Types.Track, roster: Roster): Round
 		trapperKills = 0,
 		startedAt = os.clock(),
 		trapperLeft = false,
+		closed = false,
 		connections = {},
 	}
 	active.round = round
@@ -391,6 +397,9 @@ local function startRound(track: Types.Track, roster: Roster): Round
 
 	-- Connected before anything yields, so nobody can leave unnoticed.
 	connect(round, Players.PlayerRemoving, function(player: Player)
+		if round.closed then
+			return
+		end
 		local runner = round.byPlayer[player]
 		if runner then
 			eliminate(runner, "Left")
@@ -476,6 +485,15 @@ local function runRound(round: Round): Types.Winner
 		publishProgress(round)
 		task.wait(interval)
 	end
+end
+
+-- Stops every round handler, so nothing changes once the results are built.
+local function closeRound(round: Round)
+	round.closed = true
+	for _, connection in round.connections do
+		connection:Disconnect()
+	end
+	table.clear(round.connections)
 end
 
 -- Results -----------------------------------------------------------------------
@@ -585,6 +603,7 @@ local function playOnce()
 
 	local round = startRound(track, roster)
 	local winner = runRound(round)
+	closeRound(round)
 
 	local results = buildResults(round, winner)
 	announce(results)

@@ -108,13 +108,16 @@ local function build(): Elements
 	local feed = Instance.new("Frame")
 	feed.Name = "KillFeed"
 	feed.BackgroundTransparency = 1
-	feed.AnchorPoint = Vector2.new(1, 0)
-	feed.Position = UDim2.new(1, -10, 0, 130)
+	-- Bottom right: the top right corner belongs to Roblox's player list on PC, and on phones this
+	-- offset keeps the feed above the jump button.
+	feed.AnchorPoint = Vector2.new(1, 1)
+	feed.Position = UDim2.new(1, -10, 1, -150)
 	feed.Size = UDim2.fromScale(0.32, 0.4)
 	UI.sizeLimit(feed, Vector2.new(200, 100), Vector2.new(380, 320))
 	local feedLayout = Instance.new("UIListLayout")
 	feedLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	feedLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	feedLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
 	feedLayout.Padding = UDim.new(0, 4)
 	feedLayout.Parent = feed
 	feed.Parent = gui
@@ -298,7 +301,7 @@ local function onFeed(entry: Types.FeedEntry)
 		alignX = Enum.TextXAlignment.Right,
 		maxTextSize = 20,
 	})
-	label.LayoutOrder = -feedOrder -- newest on top
+	label.LayoutOrder = feedOrder -- newest at the bottom
 
 	local entries: { TextLabel } = {}
 	for _, child in elements.feed:GetChildren() do
@@ -308,9 +311,9 @@ local function onFeed(entry: Types.FeedEntry)
 	end
 	if #entries > FEED_MAX_ENTRIES then
 		table.sort(entries, function(a, b)
-			return a.LayoutOrder > b.LayoutOrder
+			return a.LayoutOrder < b.LayoutOrder
 		end)
-		entries[1]:Destroy() -- the oldest has the highest LayoutOrder
+		entries[1]:Destroy() -- the oldest has the lowest LayoutOrder
 	end
 
 	task.delay(FEED_LIFETIME, function()

@@ -220,8 +220,10 @@ end
 local function circleAt(position: Vector3): Types.Circle
 	for _, circle in circles do
 		local offset = position - circle.center
+		-- Measured up from the circle, so jumping inside a circle keeps you in it.
 		if
-			math.abs(offset.Y) <= LobbyConfig.CircleHeightTolerance
+			offset.Y >= -2
+			and offset.Y <= LobbyConfig.CircleMaxHeight
 			and Vector2.new(offset.X, offset.Z).Magnitude <= circle.radius
 		then
 			return circle.kind

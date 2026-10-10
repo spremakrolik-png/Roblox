@@ -13,9 +13,10 @@ function StatusText.formatClock(seconds: number): string
 end
 
 function StatusText.formatTime(seconds: number): string
-	local clamped = math.max(0, seconds)
-	local minutes = math.floor(clamped / 60)
-	return string.format("%d:%04.1f", minutes, clamped - minutes * 60)
+	-- Round to tenths first, so 59.96 s prints as 1:00.0 and not 0:60.0.
+	local tenths = math.floor(math.max(0, seconds) * 10 + 0.5)
+	local minutes = tenths // 600
+	return string.format("%d:%04.1f", minutes, (tenths - minutes * 600) / 10)
 end
 
 function StatusText.secondsLeft(state: GameState.Snapshot, now: number): number
