@@ -12,3 +12,5 @@ local Controllers = script.Parent:WaitForChild("Controllers")
 
 require(Controllers:WaitForChild("HUDController")).start()
 require(Controllers:WaitForChild("LobbyController")).start()
+require(Controllers:WaitForChild("EffectsController")).start()
+require(Controllers:WaitForChild("SpectateController")).start()

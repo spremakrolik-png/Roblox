@@ -8,7 +8,8 @@
 --   * a segment never appears before its minDifficultyTier;
 --   * a checkpoint gate after every CheckpointEvery segments.
 -- When the hard rules leave no candidate, the band is widened step by step; the soft "different
--- builder than the previous segment" preference is dropped first.
+-- builder than the previous segment" preference is dropped first. A trap slot only widens the band
+-- by one; if no trap fits even then, the slot becomes a link instead.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -25,7 +26,8 @@ type PickState = {
 	lastBuilder: string?,
 }
 
--- Relaxation steps, tried in order until one yields a candidate.
+-- Relaxation steps, tried in order until one yields a candidate. Trap slots stop after the third.
+local TRAP_RELAXATIONS = 3
 type Relaxation = { bandSlack: number, ignoreTier: boolean, allowSameBuilder: boolean }
 local RELAXATIONS: { Relaxation } = {
 	{ bandSlack = 0, ignoreTier = false, allowSameBuilder = false },
@@ -93,10 +95,11 @@ local function pick(
 	wantTrap: boolean,
 	tier: number,
 	state: PickState,
-	rng: Random
+	rng: Random,
+	steps: number
 ): Types.SegmentDef?
-	for _, relax in RELAXATIONS do
-		local list = candidates(defs, wantTrap, tier, state, relax)
+	for step = 1, math.min(steps, #RELAXATIONS) do
+		local list = candidates(defs, wantTrap, tier, state, RELAXATIONS[step])
 		if #list > 0 then
 			return weightedPick(list, rng)
 		end
@@ -104,7 +107,35 @@ local function pick(
 	return nil
 end
 
+local function checkpointsFor(count: number): { number }
+	local checkpointsAfter: { number } = {}
+	for after = TrackConfig.CheckpointEvery, count - 1, TrackConfig.CheckpointEvery do
+		table.insert(checkpointsAfter, after)
+	end
+	return checkpointsAfter
+end
+
+-- GameConfig.Track.DebugSegments: a fixed list of segment ids instead of a random plan.
+local function debugPlan(seed: number, defs: { Types.SegmentDef }): Types.TrackPlan
+	local segments: { Types.SegmentDef } = {}
+	for _, id in TrackConfig.DebugSegments do
+		local found: Types.SegmentDef? = nil
+		for _, def in defs do
+			if def.id == id then
+				found = def
+				break
+			end
+		end
+		assert(found, `GameConfig.Track.DebugSegments: unknown segment id {id}`)
+		table.insert(segments, found)
+	end
+	return { seed = seed, segments = segments, checkpointsAfter = checkpointsFor(#segments) }
+end
+
 function TrackPlanner.plan(seed: number, defs: { Types.SegmentDef }): Types.TrackPlan
+	if #TrackConfig.DebugSegments > 0 then
+		return debugPlan(seed, defs)
+	end
 	local rng = Random.new(seed)
 	local count = rng:NextInteger(TrackConfig.MinSegments, TrackConfig.MaxSegments)
 	local state: PickState = { uses = {}, lastTrapType = nil, lastBuilder = nil }
@@ -116,9 +147,9 @@ function TrackPlanner.plan(seed: number, defs: { Types.SegmentDef }): Types.Trac
 	for index = 1, count do
 		local tier = tierFor(index, count)
 		local wantTrap = trapsSinceLink < trapsBeforeLink
-		local def = pick(defs, wantTrap, tier, state, rng)
-		if not def and wantTrap then
-			def = pick(defs, false, tier, state, rng)
+		local def = if wantTrap then pick(defs, true, tier, state, rng, TRAP_RELAXATIONS) else nil
+		if not def then
+			def = pick(defs, false, tier, state, rng, #RELAXATIONS)
 		end
 		if not def then
 			-- Only reachable if the library is far too small for the track length.
@@ -137,15 +168,10 @@ function TrackPlanner.plan(seed: number, defs: { Types.SegmentDef }): Types.Trac
 		end
 	end
 
-	local checkpointsAfter: { number } = {}
-	for after = TrackConfig.CheckpointEvery, count - 1, TrackConfig.CheckpointEvery do
-		table.insert(checkpointsAfter, after)
-	end
-
 	return {
 		seed = seed,
 		segments = segments,
-		checkpointsAfter = checkpointsAfter,
+		checkpointsAfter = checkpointsFor(count),
 	}
 end
 

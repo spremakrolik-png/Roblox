@@ -1,6 +1,6 @@
 --!strict
 -- Every RemoteEvent in the game. The server creates them, clients wait for them.
--- Phase 1 has no client -> server remotes: the only player input is where they stand.
+-- Client -> server remotes are validated on the server (see SpectateService).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -14,9 +14,15 @@ export type Remotes = {
 	KillFeed: RemoteEvent,
 	-- server -> all clients: (results: Types.RoundResults)
 	RoundResults: RemoteEvent,
+	-- server -> all clients: (alert: Types.TrapAlert) when a trap starts its telegraph
+	TrapActivated: RemoteEvent,
+	-- server -> all clients: (position: Vector3, color: Color3) cartoon burst where a runner died
+	DeathEffect: RemoteEvent,
+	-- client -> server: (targetUserId: number) whom to spectate, 0 = stop
+	SpectateRequest: RemoteEvent,
 }
 
-local NAMES = { "RoleBanner", "KillFeed", "RoundResults" }
+local NAMES = { "RoleBanner", "KillFeed", "RoundResults", "TrapActivated", "DeathEffect", "SpectateRequest" }
 
 local folder: Instance
 if RunService:IsServer() then

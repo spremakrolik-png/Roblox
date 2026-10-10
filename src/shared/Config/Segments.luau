@@ -29,7 +29,42 @@ local function link(
 	}
 end
 
+-- Trap segment: the builder module has the trap's name, and the trapper gets a button for it.
+local function trap(
+	id: string,
+	trapType: Types.TrapType,
+	length: number,
+	difficulty: number,
+	weight: number,
+	minDifficultyTier: number,
+	params: { [string]: number }
+): Types.SegmentDef
+	return {
+		id = id,
+		builder = trapType,
+		length = length,
+		rise = 0,
+		difficulty = difficulty,
+		trapType = trapType,
+		weight = weight,
+		minDifficultyTier = minDifficultyTier,
+		params = params,
+	}
+end
+
 local list: { Types.SegmentDef } = {
+	-- Traps (Phase 3: the first five).
+	trap("LavaFloor1", "LavaFloor", 40, 1, 3, 1, { safeBlocks = 3 }),
+	trap("LavaFloor3", "LavaFloor", 44, 3, 2, 2, { safeBlocks = 2 }),
+	trap("VanishingBlocks2", "VanishingBlocks", 40, 2, 3, 1, { tileLength = 4 }),
+	trap("VanishingBlocks4", "VanishingBlocks", 48, 4, 2, 2, { tileLength = 3 }),
+	trap("ClosingZone2", "ClosingZone", 32, 2, 3, 1, {}),
+	trap("ClosingZone4", "ClosingZone", 40, 4, 2, 2, {}),
+	trap("CrushingWalls1", "CrushingWalls", 32, 1, 3, 1, {}),
+	trap("CrushingWalls3", "CrushingWalls", 40, 3, 2, 2, {}),
+	trap("Pistons2", "Pistons", 40, 2, 3, 1, { pistons = 3 }),
+	trap("Pistons5", "Pistons", 48, 5, 2, 3, { pistons = 5 }),
+
 	-- Square platforms drifting left and right.
 	link("JumpPlatforms1", "JumpPlatforms", 48, 0, 1, 3, 1, { size = 7, gapShare = 0.45 }),
 	link("JumpPlatforms2", "JumpPlatforms", 48, 0, 2, 2, 1, { size = 6, gapShare = 0.65 }),

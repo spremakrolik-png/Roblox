@@ -46,6 +46,7 @@ local ELIMINATION_LABEL: { [Types.EliminationReason]: string } = {
 	AFK = "eliminated (AFK)",
 	Left = "left the game",
 	Disqualified = "disqualified",
+	Trap = "killed by a trap",
 }
 
 local FEED_COLORS: { [Types.FeedKind]: Color3 } = {
@@ -203,7 +204,7 @@ local function personalLine(state: GameState.Snapshot): (string, Color3)
 	end
 
 	if role == "Trapper" then
-		return "TRAPPER - keep up with the runners!", UI.Colors.Trapper
+		return "TRAPPER - run along the corridor, press E at the buttons", UI.Colors.Trapper
 	end
 	local status = GameState.getStatus(player)
 	if status == "Finished" then
@@ -396,11 +397,10 @@ local function onResults(results: Types.RoundResults)
 	end
 	for _, entry in results.eliminated do
 		order += 1
-		addResultLine(
-			order,
-			string.format("%s - %s", entry.name, ELIMINATION_LABEL[entry.reason] or "eliminated"),
-			UI.Colors.Death
-		)
+		local text = if entry.cause
+			then `{entry.name} {entry.cause}`
+			else string.format("%s - %s", entry.name, ELIMINATION_LABEL[entry.reason] or "eliminated")
+		addResultLine(order, text, UI.Colors.Death)
 	end
 	if order == 0 then
 		addResultLine(1, "No runners this round", UI.Colors.Muted)

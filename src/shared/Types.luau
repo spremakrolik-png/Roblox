@@ -12,8 +12,9 @@ export type Circle = "None" | "Runner" | "Trapper"
 
 export type RunnerStatus = "None" | "Alive" | "Finished" | "Eliminated"
 
+-- "Trap": killed by a trap, or fell shortly after a trap hit them (credited to the trapper).
 -- "Disqualified": reached the finish faster than physically possible between checkpoints.
-export type EliminationReason = "Died" | "Fell" | "AFK" | "Left" | "Disqualified"
+export type EliminationReason = "Died" | "Fell" | "Trap" | "AFK" | "Left" | "Disqualified"
 
 -- "NoContest": every runner left the server. "Aborted": the technical round limit fired.
 export type Winner = "Runners" | "Trapper" | "NoContest" | "Aborted"
@@ -87,7 +88,39 @@ export type SegmentContext = {
 	rng: Random,
 }
 
-export type SegmentBuilder = (ctx: SegmentContext) -> ()
+-- Link builders return nothing; trap builders return a TrapHandle.
+export type SegmentBuilder = (ctx: SegmentContext) -> ...any
+
+-- What a trap gets from TrapService while it runs. Every call is a no-op once the round is over.
+export type TrapHooks = {
+	runnersIn: (box: Box) -> { Player }, -- alive runners whose root part is inside the box
+	kill: (player: Player) -> (), -- kill a runner with this trap (credited to the trapper)
+	markHit: (player: Player) -> (), -- a fall soon after this counts as a kill by this trap
+	push: (player: Player, velocity: Vector3) -> (), -- knock a runner away (server-side)
+	isLive: () -> boolean,
+}
+
+-- Returned by a trap segment's builder.
+export type TrapHandle = {
+	zone: Box, -- where runners get the on-screen warning
+	activate: (hooks: TrapHooks) -> (), -- yields: telegraph, effect, reset
+}
+
+export type TrackTrap = {
+	segmentIndex: number,
+	trapType: TrapType,
+	handle: TrapHandle,
+	buttonCFrame: CFrame, -- floor point in the trapper corridor at the start of the segment
+}
+
+-- Sent to every client when a trap fires.
+export type TrapAlert = {
+	trapType: TrapType,
+	name: string,
+	zoneCFrame: CFrame,
+	zoneSize: Vector3,
+	telegraph: number,
+}
 
 export type TrackSegment = {
 	index: number,
@@ -117,6 +150,7 @@ export type Track = {
 	finishZone: Box,
 	startKillY: number, -- kill height on the start pad
 	checkpoints: { Checkpoint },
+	traps: { TrackTrap },
 	gates: { BasePart },
 }
 
@@ -140,6 +174,7 @@ export type EliminatedEntry = {
 	userId: number,
 	name: string,
 	reason: EliminationReason,
+	cause: string?, -- for traps: the full phrase, e.g. "was crushed by Crushing Walls"
 }
 
 export type RoundResults = {

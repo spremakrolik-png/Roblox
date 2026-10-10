@@ -10,9 +10,12 @@ local GameState = require(ReplicatedStorage.Shared.GameState)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local StatusText = require(ReplicatedStorage.Shared.StatusText)
 local Types = require(ReplicatedStorage.Shared.Types)
+local TrapsConfig = require(ReplicatedStorage.Shared.Config.Traps)
 local TrackGenerator = require(script.Parent.Parent.Track.TrackGenerator)
 local CharacterService = require(script.Parent.CharacterService)
 local LobbyService = require(script.Parent.LobbyService)
+local SpectateService = require(script.Parent.SpectateService)
+local TrapService = require(script.Parent.TrapService)
 
 local Keys = GameState.Keys
 local PlayerKeys = GameState.PlayerKeys
@@ -40,6 +43,9 @@ type RunnerState = {
 	checkpointAt: number, -- os.clock() at the last checkpoint (or when the gates opened)
 	checkpointDistance: number, -- track distance of the last checkpoint (0 = start line)
 	tooFast: string?, -- set when a stretch was covered faster than physically possible
+	cause: string?, -- trap kills: "was crushed by Crushing Walls"
+	lastTrap: Types.TrapType?, -- the last trap that hit this runner (for fall credit)
+	lastTrapAt: number,
 }
 
 type Round = {
@@ -70,6 +76,7 @@ local active: { round: Round?, track: Types.Track?, participants: { Player } } =
 local ELIMINATION_TEXT: { [Types.EliminationReason]: string } = {
 	Died = "%s died",
 	Fell = "%s fell into the void",
+	Trap = "%s was killed by a trap",
 	AFK = "%s was eliminated (AFK)",
 	Left = "%s left the game",
 	Disqualified = "%s was disqualified",
@@ -219,6 +226,7 @@ local function runCountdown(roster: Roster): Types.Track?
 	active.track = track
 	GameState.write(Keys.ThemeName, track.theme.name)
 	GameState.write(Keys.CheckpointCount, #track.checkpoints)
+	TrapService.prepare(track)
 
 	while os.clock() < deadline do
 		task.wait(0.25)
@@ -234,16 +242,32 @@ end
 
 -- Round -----------------------------------------------------------------------
 
-local function eliminate(runner: RunnerState, reason: Types.EliminationReason)
+-- `cause` is the phrase after the runner's name for trap kills ("was burned by Lava Floor").
+local function eliminate(runner: RunnerState, reason: Types.EliminationReason, cause: string?)
 	if runner.status ~= "Alive" then
 		return
 	end
 	runner.status = "Eliminated"
 	runner.reason = reason
+	runner.cause = cause
 	if inGame(runner.player) then
 		runner.player:SetAttribute(PlayerKeys.Status, "Eliminated")
 	end
-	feed(string.format(ELIMINATION_TEXT[reason], runner.name), "Death")
+	if cause then
+		feed(`{runner.name} {cause}`, "Death")
+	else
+		feed(string.format(ELIMINATION_TEXT[reason], runner.name), "Death")
+	end
+end
+
+-- A trap kill: eliminated with the trap as the cause and credited to the trapper.
+local function trapKill(round: Round, runner: RunnerState, trapType: Types.TrapType, byFall: boolean)
+	if runner.status ~= "Alive" or round.closed then
+		return
+	end
+	local info = TrapsConfig.info(trapType)
+	eliminate(runner, "Trap", `{if byFall then info.fallVerb else info.killVerb} {info.name}`)
+	round.trapperKills += 1
 end
 
 local function finish(round: Round, runner: RunnerState)
@@ -299,7 +323,11 @@ local function trackRunner(round: Round, runner: RunnerState, now: number)
 	local position = root.Position
 
 	if position.Y < TrackGenerator.killYFor(round.track, runner.furthest) then
-		eliminate(runner, "Fell")
+		if runner.lastTrap and now - runner.lastTrapAt <= TrapsConfig.FallCreditSeconds then
+			trapKill(round, runner, runner.lastTrap, true)
+		else
+			eliminate(runner, "Fell")
+		end
 		CharacterService.kill(runner.player)
 		return
 	end
@@ -378,6 +406,9 @@ local function newRunnerState(player: Player): RunnerState
 		checkpointAt = os.clock(),
 		checkpointDistance = 0,
 		tooFast = nil,
+		cause = nil,
+		lastTrap = nil,
+		lastTrapAt = 0,
 		place = nil,
 		finishTime = nil,
 	}
@@ -510,6 +541,33 @@ local function startRound(track: Types.Track, roster: Roster): Round
 	if inGame(round.trapper) then
 		Remotes.RoleBanner:FireClient(round.trapper, "Trapper")
 	end
+
+	TrapService.start({
+		trapper = round.trapper,
+		aliveRunners = function(): { Player }
+			local alive: { Player } = {}
+			for _, runner in round.runners do
+				if runner.status == "Alive" and inGame(runner.player) then
+					table.insert(alive, runner.player)
+				end
+			end
+			return alive
+		end,
+		onTrapKill = function(player: Player, trapType: Types.TrapType)
+			local runner = round.byPlayer[player]
+			if runner and runner.status == "Alive" and not round.closed then
+				trapKill(round, runner, trapType, false)
+				CharacterService.kill(player)
+			end
+		end,
+		onTrapHit = function(player: Player, trapType: Types.TrapType)
+			local runner = round.byPlayer[player]
+			if runner then
+				runner.lastTrap = trapType
+				runner.lastTrapAt = os.clock()
+			end
+		end,
+	})
 	return round
 end
 
@@ -543,6 +601,7 @@ end
 -- Stops every round handler, so nothing changes once the results are built.
 local function closeRound(round: Round)
 	round.closed = true
+	TrapService.stop()
 	for _, connection in round.connections do
 		connection:Disconnect()
 	end
@@ -576,6 +635,7 @@ local function buildResults(round: Round, winner: Types.Winner): Types.RoundResu
 				userId = runner.userId,
 				name = runner.name,
 				reason = reason,
+				cause = runner.cause,
 			})
 		elseif runner.status == "Alive" then
 			table.insert(results.survivors, runner.name)
@@ -625,6 +685,8 @@ local function cleanup(round: Round?, track: Types.Track?, participants: { Playe
 	end
 	CharacterService.teleportAll(targets)
 
+	TrapService.clear()
+	SpectateService.reset()
 	if track then
 		TrackGenerator.destroy(track)
 	end

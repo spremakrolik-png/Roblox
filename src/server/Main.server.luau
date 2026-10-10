@@ -6,6 +6,7 @@ local Services = script.Parent.Services
 local CharacterService = require(Services.CharacterService)
 local LobbyService = require(Services.LobbyService)
 local RoundService = require(Services.RoundService)
+local SpectateService = require(Services.SpectateService)
 
 local ok, streaming = pcall(function()
 	return workspace.StreamingEnabled
@@ -16,6 +17,7 @@ end
 
 CharacterService.init()
 LobbyService.init()
+SpectateService.init()
 RoundService.start()
 
 print("[Main] Trap Runner server started")

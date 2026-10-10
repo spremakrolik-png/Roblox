@@ -24,6 +24,8 @@ local CORRIDOR_X = HALF_WIDTH + WALL + TrackConfig.CorridorWidth / 2
 local OUTER_WALL_X = HALF_WIDTH + WALL + TrackConfig.CorridorWidth + WALL / 2
 local LEFT_EDGE = -HALF_WIDTH - WALL -- outer face of the left side walls
 local RIGHT_EDGE = OUTER_WALL_X + WALL / 2 -- outer face of the corridor wall
+-- Trap buttons stand by the outer corridor wall: more than 8 studs (the prompt radius) from any runner.
+local BUTTON_X = OUTER_WALL_X - WALL / 2 - 2
 
 local function pointInBox(box: Types.Box, position: Vector3): boolean
 	local relative = box.cframe:PointToObjectSpace(position)
@@ -285,11 +287,14 @@ local function buildCheckpointGate(parent: Instance, theme: Types.Theme, at: CFr
 	Build.sign(beam, Enum.NormalId.Front, text, theme.accentColor)
 end
 
-local function buildSegment(index: number, ctx: Types.SegmentContext): Model
+-- Builds one segment. Trap segments also return their TrapHandle.
+local function buildSegment(index: number, ctx: Types.SegmentContext): (Model, Types.TrapHandle?)
 	local def = ctx.def
 	local entry = ctx.entry
 	local segmentModel = ctx.parent
-	local asset = Assets.cloneModel("Segment_" .. def.id)
+	local handle: Types.TrapHandle? = nil
+	-- Hand-made models replace link segments only: a trap needs its moving parts from the builder.
+	local asset = if def.trapType then nil else Assets.cloneModel("Segment_" .. def.id)
 	if asset then
 		-- Contract: the asset's pivot is the entry floor centre, facing forward.
 		asset:PivotTo(entry)
@@ -297,11 +302,15 @@ local function buildSegment(index: number, ctx: Types.SegmentContext): Model
 	else
 		local builder = Segments[def.builder]
 		assert(builder, `No builder {def.builder} for segment {def.id}`)
-		builder(ctx)
+		local result = builder(ctx)
+		if def.trapType then
+			assert(type(result) == "table", `Trap segment {def.id} did not return a TrapHandle`)
+			handle = result :: Types.TrapHandle
+		end
 	end
 	buildSides(segmentModel, ctx.theme, entry, def.length, def.rise)
 	segmentModel:SetAttribute("Index", index)
-	return segmentModel
+	return segmentModel, handle
 end
 
 -- A fresh random seed, or GameConfig.Track.DebugSeed when it is set (to replay a track from the logs).
@@ -335,6 +344,7 @@ function TrackGenerator.generate(seed: number?): Types.Track
 	buildDecor(model, theme, origin * CFrame.new(0, 0, TrackConfig.StartPadLength), TrackConfig.StartPadLength, 0)
 
 	local segments: { Types.TrackSegment } = {}
+	local traps: { Types.TrackTrap } = {}
 	local entry = origin
 	local distance = 0
 	for index, def in plan.segments do
@@ -347,7 +357,16 @@ function TrackGenerator.generate(seed: number?): Types.Track
 			parent = Build.model(string.format("%02d_%s", index, def.id), model),
 			rng = rng,
 		}
-		local segmentModel = buildSegment(index, ctx)
+		local segmentModel, handle = buildSegment(index, ctx)
+		if handle and def.trapType then
+			table.insert(traps, {
+				segmentIndex = index,
+				trapType = def.trapType,
+				handle = handle,
+				-- Near the outer corridor wall, at the start of the segment: the trapper has to keep up.
+				buttonCFrame = entry * CFrame.new(BUTTON_X, 0, -TrackConfig.PadLength / 2),
+			})
+		end
 		buildDecor(segmentModel, theme, entry, def.length, def.rise)
 
 		local exit = entry * CFrame.new(0, def.rise, -def.length)
@@ -397,6 +416,7 @@ function TrackGenerator.generate(seed: number?): Types.Track
 		finishZone = finishZone,
 		startKillY = origin.Y - TrackConfig.FallKillDepth,
 		checkpoints = checkpoints,
+		traps = traps,
 		gates = gates,
 	}
 end

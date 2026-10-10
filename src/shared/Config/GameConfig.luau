@@ -65,6 +65,9 @@ local GameConfig = {
 
 		-- Generator
 		DebugSeed = 0, -- non-zero: every round uses this seed (to replay a track from the logs)
+		-- Non-empty: every track is exactly these segment ids, in order (to test specific traps), e.g.
+		-- { "LavaFloor1", "VanishingBlocks2", "ClosingZone2", "CrushingWalls1", "Pistons2" }
+		DebugSegments = {} :: { string },
 		MinSegments = 24,
 		MaxSegments = 32,
 		-- Allowed segment difficulty in each third of the track.
