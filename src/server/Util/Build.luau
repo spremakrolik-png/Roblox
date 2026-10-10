@@ -16,6 +16,7 @@ export type PartProps = {
 	canQuery: boolean?,
 	castShadow: boolean?,
 	physics: PhysicalProperties?,
+	collisionGroup: string?,
 	parent: Instance?,
 }
 
@@ -44,6 +45,9 @@ function Build.part(props: PartProps): Part
 	end
 	if props.physics then
 		part.CustomPhysicalProperties = props.physics
+	end
+	if props.collisionGroup then
+		part.CollisionGroup = props.collisionGroup
 	end
 	if props.castShadow ~= nil then
 		part.CastShadow = props.castShadow

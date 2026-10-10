@@ -64,6 +64,19 @@ local list: { Types.SegmentDef } = {
 	trap("CrushingWalls3", "CrushingWalls", 40, 3, 2, 2, {}),
 	trap("Pistons2", "Pistons", 40, 2, 3, 1, { pistons = 3 }),
 	trap("Pistons5", "Pistons", 48, 5, 2, 3, { pistons = 5 }),
+	-- Traps added in Phase 4.
+	trap("FallingCeiling2", "FallingCeiling", 40, 2, 3, 1, { safeShare = 0.3 }),
+	trap("FallingCeiling4", "FallingCeiling", 44, 4, 2, 2, { safeShare = 0.2 }),
+	trap("SpinningBlade2", "SpinningBlade", 36, 2, 3, 1, { revolution = 2 }),
+	trap("SpinningBlade4", "SpinningBlade", 36, 4, 2, 2, { revolution = 1.3 }),
+	trap("ArrowVolley3", "ArrowVolley", 40, 3, 2, 2, { laneWidth = 2, gapWidth = 3 }),
+	trap("ArrowVolley5", "ArrowVolley", 44, 5, 2, 3, { laneWidth = 2.5, gapWidth = 2.2 }),
+	trap("IceFloor1", "IceFloor", 44, 1, 3, 1, { drift = 8 }),
+	trap("IceFloor3", "IceFloor", 44, 3, 2, 2, { drift = 11 }),
+	trap("FakeFloor2", "FakeFloor", 40, 2, 3, 1, { fallShare = 0.35 }),
+	trap("FakeFloor4", "FakeFloor", 44, 4, 2, 2, { fallShare = 0.55 }),
+	trap("RisingFlood2", "RisingFlood", 44, 2, 3, 1, { refuges = 3 }),
+	trap("RisingFlood4", "RisingFlood", 44, 4, 2, 2, { refuges = 2 }),
 
 	-- Square platforms drifting left and right.
 	link("JumpPlatforms1", "JumpPlatforms", 48, 0, 1, 3, 1, { size = 7, gapShare = 0.45 }),

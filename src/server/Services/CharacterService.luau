@@ -2,6 +2,7 @@
 -- Character plumbing: collision groups, jump/walk settings, teleports and helpers
 -- for finding a player's humanoid and root part.
 
+local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local PhysicsService = game:GetService("PhysicsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -9,14 +10,35 @@ local StarterPlayer = game:GetService("StarterPlayer")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 
-local PLAYER_GROUP = "Players"
+local PLAYER_GROUP = GameConfig.CollisionGroups.Players
 local TELEPORT_STREAM_TIMEOUT = 4
 local TELEPORT_BATCH_TIMEOUT = 6
 
 local CharacterService = {}
 
--- Walk speed each player should have; re-applied whenever their character respawns.
+-- Base walk speed each player should have; re-applied whenever their character respawns.
 local walkSpeeds: { [Player]: number } = {}
+
+-- Temporary speed multipliers (Speed Burst, Sprint, Slow Cannon). They stack by multiplying.
+type SpeedModifier = { multiplier: number, token: number }
+local modifiers: { [Player]: { [string]: SpeedModifier } } = {}
+local modifierToken = 0
+
+local function currentSpeed(player: Player): number
+	local speed = walkSpeeds[player] or GameConfig.LobbyWalkSpeed
+	for _, modifier in modifiers[player] or {} do
+		speed *= modifier.multiplier
+	end
+	return speed
+end
+
+local function applySpeed(player: Player)
+	local character = player.Character
+	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
+	if humanoid then
+		humanoid.WalkSpeed = currentSpeed(player)
+	end
+end
 
 function CharacterService.getHumanoid(player: Player): Humanoid?
 	local character = player.Character
@@ -62,10 +84,29 @@ end
 
 function CharacterService.setWalkSpeed(player: Player, speed: number?)
 	walkSpeeds[player] = speed
-	local humanoid = CharacterService.getHumanoid(player)
-	if humanoid then
-		humanoid.WalkSpeed = speed or GameConfig.LobbyWalkSpeed
-	end
+	applySpeed(player)
+end
+
+-- Multiplies the player's walk speed for `seconds`. Re-applying the same key restarts it.
+function CharacterService.addSpeedModifier(player: Player, key: string, multiplier: number, seconds: number)
+	modifierToken += 1
+	local token = modifierToken
+	local list = modifiers[player] or {}
+	modifiers[player] = list
+	list[key] = { multiplier = multiplier, token = token }
+	applySpeed(player)
+	task.delay(seconds, function()
+		local current = modifiers[player]
+		if current and current[key] and current[key].token == token then
+			current[key] = nil
+			applySpeed(player)
+		end
+	end)
+end
+
+function CharacterService.clearSpeedModifiers(player: Player)
+	modifiers[player] = nil
+	applySpeed(player)
 end
 
 function CharacterService.setAnchored(player: Player, anchored: boolean)
@@ -80,6 +121,28 @@ function CharacterService.kill(player: Player)
 	if humanoid then
 		humanoid.Health = 0
 	end
+end
+
+-- Drives the character at `velocity` for `seconds` with a short-lived LinearVelocity. The character's
+-- owner simulates the constraint, so this works from the server without trusting the client.
+function CharacterService.applyVelocity(player: Player, velocity: Vector3, seconds: number, name: string)
+	local root = CharacterService.getRoot(player)
+	if not root then
+		return
+	end
+	local attachment = Instance.new("Attachment")
+	attachment.Name = name
+	attachment.Parent = root
+	local mover = Instance.new("LinearVelocity")
+	mover.Name = name
+	mover.Attachment0 = attachment
+	mover.RelativeTo = Enum.ActuatorRelativeTo.World
+	mover.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+	mover.VectorVelocity = velocity
+	mover.MaxForce = math.huge
+	mover.Parent = root
+	Debris:AddItem(mover, seconds)
+	Debris:AddItem(attachment, seconds)
 end
 
 -- Moves a character, asking the client to stream the destination in first. Yields.
@@ -132,7 +195,7 @@ local function setupCharacter(player: Player, character: Model)
 	if humanoid and humanoid:IsA("Humanoid") then
 		humanoid.UseJumpPower = true
 		humanoid.JumpPower = GameConfig.JumpPower
-		humanoid.WalkSpeed = walkSpeeds[player] or GameConfig.LobbyWalkSpeed
+		humanoid.WalkSpeed = currentSpeed(player)
 	end
 end
 
@@ -148,6 +211,10 @@ end
 function CharacterService.init()
 	PhysicsService:RegisterCollisionGroup(PLAYER_GROUP)
 	PhysicsService:CollisionGroupSetCollidable(PLAYER_GROUP, PLAYER_GROUP, GameConfig.PlayerCollisions)
+	local groups = GameConfig.CollisionGroups
+	PhysicsService:RegisterCollisionGroup(groups.Glass)
+	PhysicsService:RegisterCollisionGroup(groups.Projectile)
+	PhysicsService:CollisionGroupSetCollidable(groups.Projectile, groups.Glass, false)
 
 	workspace.Gravity = GameConfig.Gravity
 	StarterPlayer.CharacterUseJumpPower = true
@@ -160,6 +227,7 @@ function CharacterService.init()
 	end
 	Players.PlayerRemoving:Connect(function(player)
 		walkSpeeds[player] = nil
+		modifiers[player] = nil
 	end)
 end
 

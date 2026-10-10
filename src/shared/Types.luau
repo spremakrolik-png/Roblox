@@ -154,6 +154,76 @@ export type Track = {
 	gates: { BasePart },
 }
 
+-- Abilities and player data ------------------------------------------------
+
+export type AbilityId =
+	"FeatherFall"
+	| "SpeedBurst"
+	| "DoubleJump"
+	| "Dash"
+	| "Shield"
+	| "Sprint"
+	| "BlindFlash"
+	| "RemoteTrigger"
+	| "TrapRecharge"
+	| "SlowCannon"
+
+-- "Active": pressed, has a cooldown. "Passive": always on while equipped. "OncePassive": triggers
+-- by itself once per round (Shield). "OncePerRound": pressed, usable once per round.
+export type AbilityKind = "Active" | "Passive" | "OncePassive" | "OncePerRound"
+
+export type AbilityDef = {
+	id: AbilityId,
+	role: "Runner" | "Trapper",
+	name: string,
+	description: string,
+	price: number, -- Points
+	cooldown: number, -- seconds, Active only
+	kind: AbilityKind,
+	params: { [string]: number },
+}
+
+export type Loadouts = {
+	Runner: { string }, -- ability ids per slot, "" = empty
+	Trapper: { string },
+}
+
+export type PlayerStats = {
+	Rounds: number,
+	Finishes: number,
+	Wins: number, -- rounds won as a runner (finished and runners won)
+	TrapperWins: number,
+	Kills: number,
+	BestDistance: number, -- best progress share, 0..1
+}
+
+-- Saved per player (ProfileStore). Only plain data: no Instances or userdata.
+export type ProfileData = {
+	Points: number,
+	Owned: { [string]: boolean },
+	Loadouts: Loadouts,
+	Receipts: { [string]: boolean }, -- processed purchase receipt ids (Phase 5)
+	Stats: PlayerStats,
+}
+
+-- What the client sees of its own data.
+export type DataSnapshot = {
+	points: number,
+	owned: { string },
+	loadouts: Loadouts,
+	slots: number,
+}
+
+-- One equipped ability as the HUD shows it during a round.
+export type AbilitySlotState = {
+	slot: number, -- loadout slot (keys 1/2/3)
+	id: string,
+	name: string,
+	kind: AbilityKind,
+	readyAt: number, -- server time when it can be used again (0 = ready)
+	used: boolean, -- once-per-round abilities that are spent
+}
+
 -- Network payloads --------------------------------------------------------
 
 export type FeedKind = "Death" | "Finish" | "Info"
@@ -185,6 +255,13 @@ export type RoundResults = {
 	eliminated: { EliminatedEntry },
 	survivors: { string }, -- runners still alive when the round ended early (trapper left)
 	duration: number,
+	awards: { PointsAward }, -- empty when the round was aborted
+}
+
+export type PointsAward = {
+	userId: number,
+	name: string,
+	points: number,
 }
 
 return {}

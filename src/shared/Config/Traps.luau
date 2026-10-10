@@ -52,6 +52,42 @@ local Traps = {
 		PushUp = 30,
 		CrushCheckDelay = 0.35, -- anyone still inside an extended piston after this is crushed
 	},
+	FallingCeiling = {
+		Telegraph = 0.8, -- falling panels blink; the panels over the green niches stay up
+		CeilingHeight = 12,
+		DropSeconds = 0.35,
+		HoldSeconds = 1,
+		RiseSeconds = 1.5,
+	},
+	SpinningBlade = {
+		Telegraph = 0.8, -- the blade appears and blinks before it starts to spin
+		SpinSeconds = 6,
+		BladeHeight = 1.2, -- blade centre above the floor: jump over it
+		LethalHeight = 4.4, -- root part height above the floor the blade still hits
+		HitWidth = 1.6, -- distance from the blade line that counts as a hit
+	},
+	ArrowVolley = {
+		Telegraph = 0.8, -- the lanes about to be shot glow red on the floor
+		Volleys = 3,
+		VolleyInterval = 1.3,
+		FlightSeconds = 0.25,
+	},
+	IceFloor = {
+		Telegraph = 0.6,
+		ActiveSeconds = 6, -- the floor turns to ice and drifts towards the open edge
+	},
+	FakeFloor = {
+		Telegraph = 0.9, -- the tiles that will drop blink red
+		GoneSeconds = 4,
+	},
+	RisingFlood = {
+		Telegraph = 0.8,
+		FloodHeight = 5, -- acid level above the floor at its highest
+		LethalMargin = 1.5, -- root parts this close above the acid still dissolve
+		RiseSeconds = 2.5,
+		HoldSeconds = 2,
+		DrainSeconds = 1.5,
+	},
 
 	Info = {
 		LavaFloor = {
@@ -83,6 +119,42 @@ local Traps = {
 			killPhrase = "раздавили",
 			fallPhrase = "столкнули в пропасть",
 			color = Color3.fromRGB(255, 200, 40),
+		},
+		FallingCeiling = {
+			name = "Падающий потолок",
+			killPhrase = "придавил",
+			fallPhrase = "сбросил в пропасть",
+			color = Color3.fromRGB(200, 130, 60),
+		},
+		SpinningBlade = {
+			name = "Вращающееся лезвие",
+			killPhrase = "срезало",
+			fallPhrase = "сбросило в пропасть",
+			color = Color3.fromRGB(230, 230, 240),
+		},
+		ArrowVolley = {
+			name = "Залп стрел",
+			killPhrase = "сразил",
+			fallPhrase = "сбросил в пропасть",
+			color = Color3.fromRGB(255, 70, 70),
+		},
+		IceFloor = {
+			name = "Ледяной пол",
+			killPhrase = "заморозил",
+			fallPhrase = "скинул в пропасть",
+			color = Color3.fromRGB(140, 220, 255),
+		},
+		FakeFloor = {
+			name = "Ложный пол",
+			killPhrase = "обманул",
+			fallPhrase = "уронил в пропасть",
+			color = Color3.fromRGB(255, 120, 200),
+		},
+		RisingFlood = {
+			name = "Кислотный потоп",
+			killPhrase = "растворил",
+			fallPhrase = "смыл в пропасть",
+			color = Color3.fromRGB(150, 255, 60),
 		},
 	} :: { [Types.TrapType]: TrapInfo },
 }

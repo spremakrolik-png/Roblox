@@ -1,4 +1,5 @@
 std = "roblox"
+exclude = ["src/server/Vendor/*"]
 
 [rules]
 # Luau type annotations sometimes need a shadowing local after a refinement.

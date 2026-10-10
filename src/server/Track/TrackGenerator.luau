@@ -51,6 +51,7 @@ local function buildSides(parent: Instance, theme: Types.Theme, from: CFrame, le
 		material = Enum.Material.Glass,
 		transparency = 0.65,
 		castShadow = false,
+		collisionGroup = GameConfig.CollisionGroups.Glass, -- Slow Cannon shots pass, players do not
 		parent = parent,
 	})
 	Build.part({

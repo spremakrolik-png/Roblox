@@ -3,7 +3,6 @@
 -- the presser must be this round's trapper, near the button, the button unused, and not spamming.
 -- RoundService owns the runners; it plugs in through TrapService.start(context).
 
-local Debris = game:GetService("Debris")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local TrapsConfig = require(ReplicatedStorage.Shared.Config.Traps)
@@ -27,6 +26,7 @@ export type RoundContext = {
 type ButtonState = {
 	trap: Types.TrackTrap,
 	used: boolean,
+	running: boolean, -- the trap is mid-activation (cannot be recharged yet)
 	prompt: ProximityPrompt,
 	top: BasePart,
 	status: TextLabel,
@@ -35,6 +35,7 @@ type ButtonState = {
 local TrapService = {}
 
 local buttons: { ButtonState } = {}
+local usedOrder: { ButtonState } = {} -- most recent last, for Trap Recharge
 local context: RoundContext? = nil
 local lastPress: { [Player]: number } = {}
 
@@ -45,28 +46,6 @@ local function setUsed(button: ButtonState)
 	button.top.Material = Enum.Material.SmoothPlastic
 	button.status.Text = "ИСПОЛЬЗОВАНО"
 	button.status.TextColor3 = USED_COLOR
-end
-
--- Pushes a runner with a short-lived LinearVelocity. The character's owner simulates the
--- constraint, so this works from the server without trusting the client.
-local function push(player: Player, velocity: Vector3)
-	local root = CharacterService.getRoot(player)
-	if not root then
-		return
-	end
-	local attachment = Instance.new("Attachment")
-	attachment.Name = "TrapPush"
-	attachment.Parent = root
-	local mover = Instance.new("LinearVelocity")
-	mover.Name = "TrapPush"
-	mover.Attachment0 = attachment
-	mover.RelativeTo = Enum.ActuatorRelativeTo.World
-	mover.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
-	mover.VectorVelocity = velocity
-	mover.MaxForce = math.huge
-	mover.Parent = root
-	Debris:AddItem(mover, PUSH_SECONDS)
-	Debris:AddItem(attachment, PUSH_SECONDS)
 end
 
 local function hooksFor(trapType: Types.TrapType): Types.TrapHooks
@@ -105,7 +84,7 @@ local function hooksFor(trapType: Types.TrapType): Types.TrapHooks
 		end,
 		push = function(player: Player, velocity: Vector3)
 			if context then
-				push(player, velocity)
+				CharacterService.applyVelocity(player, velocity, PUSH_SECONDS, "TrapPush")
 			end
 		end,
 		isLive = function(): boolean
@@ -114,10 +93,21 @@ local function hooksFor(trapType: Types.TrapType): Types.TrapHooks
 	}
 end
 
+local function setReady(button: ButtonState)
+	button.used = false
+	button.prompt.Enabled = context ~= nil
+	button.top.Color = READY_COLOR
+	button.top.Material = Enum.Material.Neon
+	button.status.Text = "ГОТОВО"
+	button.status.TextColor3 = READY_COLOR
+end
+
 local function activate(button: ButtonState)
 	local trap = button.trap
 	local info = TrapsConfig.info(trap.trapType)
 	setUsed(button)
+	button.running = true
+	table.insert(usedOrder, button)
 	local telegraph = TrapsConfig.telegraph(trap.trapType)
 	local alert: Types.TrapAlert = {
 		trapType = trap.trapType,
@@ -132,6 +122,7 @@ local function activate(button: ButtonState)
 		if not ok then
 			warn(`[Trap] {trap.trapType} on segment {trap.segmentIndex} failed: {err}`)
 		end
+		button.running = false
 	end)
 end
 
@@ -193,7 +184,14 @@ local function buildButton(trap: Types.TrackTrap, parent: Instance): ButtonState
 		UDim2.fromScale(1, 0.4)
 	)
 
-	local button: ButtonState = { trap = trap, used = false, prompt = prompt, top = top, status = status }
+	local button: ButtonState = {
+		trap = trap,
+		used = false,
+		running = false,
+		prompt = prompt,
+		top = top,
+		status = status,
+	}
 	prompt.Triggered:Connect(function(player: Player)
 		onTriggered(button, player)
 	end)
@@ -203,10 +201,54 @@ end
 -- Builds the buttons for a freshly generated track (disabled until the round starts).
 function TrapService.prepare(track: Types.Track)
 	table.clear(buttons)
+	table.clear(usedOrder)
 	for _, trap in track.traps do
 		local segment = track.segments[trap.segmentIndex]
 		table.insert(buttons, buildButton(trap, segment.model))
 	end
+end
+
+-- Remote Trigger: activates the closest ready trap within `range` studs of the trapper.
+-- Returns false (and changes nothing) when there is none.
+function TrapService.activateNearest(player: Player, range: number): boolean
+	local current = context
+	local root = CharacterService.getRoot(player)
+	if not current or player ~= current.trapper or not root then
+		return false
+	end
+	local best: ButtonState? = nil
+	local bestDistance = range
+	for _, button in buttons do
+		if not button.used then
+			local distance = (button.top.Position - root.Position).Magnitude
+			if distance <= bestDistance then
+				best = button
+				bestDistance = distance
+			end
+		end
+	end
+	if not best then
+		return false
+	end
+	activate(best)
+	return true
+end
+
+-- Trap Recharge: makes the most recently used trap that has finished resetting ready again.
+function TrapService.rechargeLast(player: Player): boolean
+	local current = context
+	if not current or player ~= current.trapper then
+		return false
+	end
+	for index = #usedOrder, 1, -1 do
+		local button = usedOrder[index]
+		if button.used and not button.running then
+			table.remove(usedOrder, index)
+			setReady(button)
+			return true
+		end
+	end
+	return false
 end
 
 -- Arms every unused button for this round.
@@ -230,6 +272,7 @@ end
 function TrapService.clear()
 	TrapService.stop()
 	table.clear(buttons)
+	table.clear(usedOrder)
 end
 
 return TrapService

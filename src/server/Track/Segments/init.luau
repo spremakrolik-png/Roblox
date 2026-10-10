@@ -21,6 +21,12 @@ local builders: { [string]: Types.SegmentBuilder } = {
 	ClosingZone = require(script.ClosingZone),
 	CrushingWalls = require(script.CrushingWalls),
 	Pistons = require(script.Pistons),
+	FallingCeiling = require(script.FallingCeiling),
+	SpinningBlade = require(script.SpinningBlade),
+	ArrowVolley = require(script.ArrowVolley),
+	IceFloor = require(script.IceFloor),
+	FakeFloor = require(script.FakeFloor),
+	RisingFlood = require(script.RisingFlood),
 }
 
 return builders

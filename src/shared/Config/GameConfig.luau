@@ -26,6 +26,12 @@ local GameConfig = {
 	Gravity = 196.2,
 	JumpSafetyMargin = 0.15, -- every generated jump stays at least 15% below the physical limit
 	PlayerCollisions = false, -- players walk through each other (no pushing rivals off beams)
+	-- Collision groups: Slow Cannon shots fly through the glass wall, players never do.
+	CollisionGroups = {
+		Players = "Players",
+		Glass = "Glass",
+		Projectile = "Projectile",
+	},
 
 	-- Lobby ---------------------------------------------------------------
 	Lobby = {
@@ -80,6 +86,11 @@ local GameConfig = {
 		MaxTrapsBeforeLink = 3,
 		MaxSameSegment = 2, -- one segment id at most this many times per track
 		CheckpointEvery = 6, -- segments between checkpoint gates
+	},
+
+	-- Testing helpers. They only work in Roblox Studio, never in a published game.
+	Debug = {
+		StudioStartPoints = 2000, -- players with fewer Points get topped up to this, to try the shop
 	},
 
 	-- Anti-cheat: the fastest a runner could legitimately cover the stretch between checkpoints.

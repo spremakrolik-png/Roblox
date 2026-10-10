@@ -115,7 +115,7 @@ local function build(): Elements
 	feed.AnchorPoint = Vector2.new(1, 1)
 	feed.Position = UDim2.new(1, -10, 1, -150)
 	feed.Size = UDim2.fromScale(0.32, 0.4)
-	UI.sizeLimit(feed, Vector2.new(200, 100), Vector2.new(380, 320))
+	UI.sizeLimit(feed, Vector2.new(200, 100), Vector2.new(380, 180))
 	local feedLayout = Instance.new("UIListLayout")
 	feedLayout.SortOrder = Enum.SortOrder.LayoutOrder
 	feedLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
@@ -406,7 +406,16 @@ local function onResults(results: Types.RoundResults)
 		addResultLine(order, text, UI.Colors.Death)
 	end
 	if order == 0 then
-		addResultLine(1, "В этом раунде не было раннеров", UI.Colors.Muted)
+		order += 1
+		addResultLine(order, "В этом раунде не было раннеров", UI.Colors.Muted)
+	end
+	if #results.awards > 0 then
+		order += 1
+		addResultLine(order, "Очки за раунд:", UI.Colors.Gold)
+		for _, award in results.awards do
+			order += 1
+			addResultLine(order, string.format("+%d  %s", award.points, award.name), UI.Colors.Gold)
+		end
 	end
 
 	elements.results.Visible = true

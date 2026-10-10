@@ -14,6 +14,8 @@ local TrapsConfig = require(ReplicatedStorage.Shared.Config.Traps)
 local TrackGenerator = require(script.Parent.Parent.Track.TrackGenerator)
 local CharacterService = require(script.Parent.CharacterService)
 local LobbyService = require(script.Parent.LobbyService)
+local AbilityService = require(script.Parent.AbilityService)
+local PointsService = require(script.Parent.PointsService)
 local SpectateService = require(script.Parent.SpectateService)
 local TrapService = require(script.Parent.TrapService)
 
@@ -557,6 +559,9 @@ local function startRound(track: Types.Track, roster: Roster): Round
 		onTrapKill = function(player: Player, trapType: Types.TrapType)
 			local runner = round.byPlayer[player]
 			if runner and runner.status == "Alive" and not round.closed then
+				if AbilityService.absorbTrapHit(player) then
+					return -- Shield
+				end
 				trapKill(round, runner, trapType, false)
 				CharacterService.kill(player)
 			end
@@ -567,6 +572,25 @@ local function startRound(track: Types.Track, roster: Roster): Round
 				runner.lastTrap = trapType
 				runner.lastTrapAt = os.clock()
 			end
+		end,
+	})
+
+	local runnerPlayers: { Player } = {}
+	for _, runner in round.runners do
+		table.insert(runnerPlayers, runner.player)
+	end
+	AbilityService.startRound({
+		track = track,
+		trapper = round.trapper,
+		runners = runnerPlayers,
+		aliveRunners = function(): { Player }
+			local alive: { Player } = {}
+			for _, runner in round.runners do
+				if runner.status == "Alive" and inGame(runner.player) then
+					table.insert(alive, runner.player)
+				end
+			end
+			return alive
 		end,
 	})
 	return round
@@ -603,6 +627,7 @@ end
 local function closeRound(round: Round)
 	round.closed = true
 	TrapService.stop()
+	AbilityService.stopRound()
 	for _, connection in round.connections do
 		connection:Disconnect()
 	end
@@ -610,6 +635,28 @@ local function closeRound(round: Round)
 end
 
 -- Results -----------------------------------------------------------------------
+
+local function payOut(round: Round, winner: Types.Winner): { Types.PointsAward }
+	local finishers: { Player } = {}
+	for _, runner in round.finishers do
+		table.insert(finishers, runner.player)
+	end
+	local runners: { PointsService.RunnerOutcome } = {}
+	for _, runner in round.runners do
+		table.insert(runners, {
+			player = runner.player,
+			finished = runner.status == "Finished",
+			progress = math.clamp(runner.bestDistance / round.track.totalLength, 0, 1),
+		})
+	end
+	return PointsService.awardRound({
+		winner = winner,
+		trapper = round.trapper,
+		trapperKills = round.trapperKills,
+		finishers = finishers,
+		runners = runners,
+	})
+end
 
 local function buildResults(round: Round, winner: Types.Winner): Types.RoundResults
 	local results: Types.RoundResults = {
@@ -620,6 +667,7 @@ local function buildResults(round: Round, winner: Types.Winner): Types.RoundResu
 		eliminated = {},
 		survivors = {},
 		duration = os.clock() - round.startedAt,
+		awards = {},
 	}
 	for _, runner in round.finishers do
 		table.insert(results.finishers, {
@@ -687,6 +735,7 @@ local function cleanup(round: Round?, track: Types.Track?, participants: { Playe
 	CharacterService.teleportAll(targets)
 
 	TrapService.clear()
+	AbilityService.reset()
 	SpectateService.reset()
 	if track then
 		TrackGenerator.destroy(track)
@@ -724,6 +773,7 @@ local function playOnce()
 	closeRound(round)
 
 	local results = buildResults(round, winner)
+	results.awards = payOut(round, winner)
 	announce(results)
 	GameState.setPhase("Results", GameConfig.ResultsSeconds)
 	Remotes.RoundResults:FireAllClients(results)

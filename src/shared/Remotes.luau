@@ -1,6 +1,6 @@
 --!strict
 -- Every RemoteEvent in the game. The server creates them, clients wait for them.
--- Client -> server remotes are validated on the server (see SpectateService).
+-- Client -> server remotes are validated on the server (SpectateService, PlayerDataService, AbilityService).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -20,9 +20,38 @@ export type Remotes = {
 	DeathEffect: RemoteEvent,
 	-- client -> server: (targetUserId: number) whom to spectate, 0 = stop
 	SpectateRequest: RemoteEvent,
+	-- server -> one client: (snapshot: Types.DataSnapshot) points, owned abilities, loadouts
+	PlayerData: RemoteEvent,
+	-- client -> server: ("Buy", abilityId) or ("Equip", role, slot, abilityId or "")
+	ShopRequest: RemoteEvent,
+	-- server -> one client: (ok: boolean, message: string) answer to a shop request
+	ShopResult: RemoteEvent,
+	-- client -> server: (slot: number, aim: Vector3?) use an equipped ability
+	UseAbility: RemoteEvent,
+	-- server -> one client: (slots: { Types.AbilitySlotState }) equipped abilities this round
+	AbilityState: RemoteEvent,
+	-- server -> one client: (seconds: number) Blind Flash fog on the screen
+	BlindFlash: RemoteEvent,
+	-- server -> one client: ("FeatherFall", seconds, maxFallSpeed) effects the character's owner
+	-- must simulate (the client owns its character's physics)
+	AbilityEffect: RemoteEvent,
 }
 
-local NAMES = { "RoleBanner", "KillFeed", "RoundResults", "TrapActivated", "DeathEffect", "SpectateRequest" }
+local NAMES = {
+	"RoleBanner",
+	"KillFeed",
+	"RoundResults",
+	"TrapActivated",
+	"DeathEffect",
+	"SpectateRequest",
+	"PlayerData",
+	"ShopRequest",
+	"ShopResult",
+	"UseAbility",
+	"AbilityState",
+	"BlindFlash",
+	"AbilityEffect",
+}
 
 local folder: Instance
 if RunService:IsServer() then
