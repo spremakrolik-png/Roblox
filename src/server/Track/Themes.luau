@@ -7,7 +7,7 @@ local Types = require(ReplicatedStorage.Shared.Types)
 
 local list: { Types.Theme } = {
 	{
-		name = "Lava Temple",
+		name = "Лавовый храм",
 		floorColor = Color3.fromRGB(120, 96, 82),
 		floorMaterial = Enum.Material.Slate,
 		floorPhysics = nil,
@@ -22,7 +22,7 @@ local list: { Types.Theme } = {
 		decorTopColor = Color3.fromRGB(255, 120, 20),
 	},
 	{
-		name = "Neon City",
+		name = "Неоновый город",
 		floorColor = Color3.fromRGB(34, 36, 52),
 		floorMaterial = Enum.Material.SmoothPlastic,
 		floorPhysics = nil,
@@ -37,7 +37,7 @@ local list: { Types.Theme } = {
 		decorTopColor = Color3.fromRGB(0, 230, 255),
 	},
 	{
-		name = "Ice Cave",
+		name = "Ледяная пещера",
 		floorColor = Color3.fromRGB(190, 225, 245),
 		floorMaterial = Enum.Material.Ice,
 		-- Looks like ice but grips like plastic: slippery floors are a trap (Ice Floor), not a theme.
@@ -53,7 +53,7 @@ local list: { Types.Theme } = {
 		decorTopColor = Color3.fromRGB(230, 250, 255),
 	},
 	{
-		name = "Candy Factory",
+		name = "Конфетная фабрика",
 		floorColor = Color3.fromRGB(255, 190, 220),
 		floorMaterial = Enum.Material.SmoothPlastic,
 		floorPhysics = nil,

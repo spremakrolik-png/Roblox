@@ -43,7 +43,7 @@ local function setUsed(button: ButtonState)
 	button.prompt.Enabled = false
 	button.top.Color = USED_COLOR
 	button.top.Material = Enum.Material.SmoothPlastic
-	button.status.Text = "USED"
+	button.status.Text = "ИСПОЛЬЗОВАНО"
 	button.status.TextColor3 = USED_COLOR
 end
 
@@ -173,7 +173,7 @@ local function buildButton(trap: Types.TrackTrap, parent: Instance): ButtonState
 	})
 
 	local prompt = Instance.new("ProximityPrompt")
-	prompt.ActionText = "Activate"
+	prompt.ActionText = "Активировать"
 	prompt.ObjectText = info.name
 	prompt.HoldDuration = 0
 	prompt.MaxActivationDistance = TrapsConfig.ButtonActivationDistance
@@ -183,16 +183,15 @@ local function buildButton(trap: Types.TrackTrap, parent: Instance): ButtonState
 	prompt.Parent = top
 
 	local billboard = Build.billboard(top, 3.5, Vector2.new(8, 3))
-	Build.textLabel(
-		"Name",
+	Build.textLabel("Name", billboard, info.name, info.color, UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.6))
+	local status = Build.textLabel(
+		"Status",
 		billboard,
-		string.upper(info.name),
-		info.color,
-		UDim2.fromScale(0, 0),
-		UDim2.fromScale(1, 0.6)
+		"ГОТОВО",
+		READY_COLOR,
+		UDim2.fromScale(0, 0.6),
+		UDim2.fromScale(1, 0.4)
 	)
-	local status =
-		Build.textLabel("Status", billboard, "READY", READY_COLOR, UDim2.fromScale(0, 0.6), UDim2.fromScale(1, 0.4))
 
 	local button: ButtonState = { trap = trap, used = false, prompt = prompt, top = top, status = status }
 	prompt.Triggered:Connect(function(player: Player)

@@ -52,13 +52,13 @@ end
 local function onTrapActivated(alert: Types.TrapAlert)
 	local seconds = alert.telegraph + WARNING_EXTRA
 	if GameState.getRole(player) == "Trapper" then
-		showWarning(`{alert.name} activated!`, UI.Colors.Gold, seconds, false)
+		showWarning(`Ловушка «{alert.name}» сработала!`, UI.Colors.Gold, seconds, false)
 		return
 	end
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
 	if root and root:IsA("BasePart") and inBox(alert.zoneCFrame, alert.zoneSize, root.Position) then
-		showWarning(`!! {string.upper(alert.name)} !!`, UI.Colors.Trapper, seconds, true)
+		showWarning(`!! {alert.name} !!`, UI.Colors.Trapper, seconds, true)
 	end
 end
 

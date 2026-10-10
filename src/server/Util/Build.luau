@@ -137,7 +137,7 @@ function Build.sign(part: BasePart, face: Enum.NormalId, text: string, textColor
 	label.Name = "Text"
 	label.BackgroundTransparency = 1
 	label.Size = UDim2.fromScale(1, 1)
-	label.Font = Enum.Font.FredokaOne
+	label.Font = Enum.Font.SourceSansBold
 	label.Text = text
 	label.TextColor3 = textColor
 	label.TextScaled = true
@@ -173,7 +173,7 @@ function Build.textLabel(
 	label.BackgroundTransparency = 1
 	label.Position = position
 	label.Size = size
-	label.Font = Enum.Font.FredokaOne
+	label.Font = Enum.Font.SourceSansBold
 	label.Text = text
 	label.TextColor3 = color
 	label.TextScaled = true

@@ -35,7 +35,7 @@ function UI.label(props: LabelProps): TextLabel
 	label.AnchorPoint = props.anchor or Vector2.zero
 	label.Text = props.text or ""
 	label.TextColor3 = props.color or UI.Colors.Text
-	label.Font = props.font or Enum.Font.FredokaOne
+	label.Font = props.font or Enum.Font.SourceSansBold
 	label.TextScaled = true
 	label.TextXAlignment = props.alignX or Enum.TextXAlignment.Center
 	label.TextStrokeTransparency = 0.5

@@ -3,10 +3,13 @@
 
 local Types = require(script.Parent.Parent.Types)
 
+-- Player-facing text is Russian. The trap is the subject of the kill-feed line, so the phrase
+-- agrees with the trap's name and never has to guess the player's gender:
+-- "<name> <killPhrase> <runner>", e.g. "Давящие стены раздавили Player123".
 export type TrapInfo = {
-	name: string, -- shown on the trapper's button and in the kill feed
-	killVerb: string, -- "<runner> <killVerb> <name>"
-	fallVerb: string, -- used when the runner fell after the trap hit them
+	name: string, -- shown on the trapper's button, in warnings and in the kill feed
+	killPhrase: string, -- the trap killed the runner directly
+	fallPhrase: string, -- the runner fell soon after the trap hit them
 	color: Color3, -- telegraph flash and death burst
 }
 
@@ -52,33 +55,33 @@ local Traps = {
 
 	Info = {
 		LavaFloor = {
-			name = "Lava Floor",
-			killVerb = "was burned by",
-			fallVerb = "fell off because of",
+			name = "Лавовый пол",
+			killPhrase = "сжёг",
+			fallPhrase = "сбросил в пропасть",
 			color = Color3.fromRGB(255, 90, 20),
 		},
 		VanishingBlocks = {
-			name = "Vanishing Blocks",
-			killVerb = "was dropped by",
-			fallVerb = "fell through",
+			name = "Исчезающие блоки",
+			killPhrase = "уронили",
+			fallPhrase = "уронили в пропасть",
 			color = Color3.fromRGB(150, 120, 255),
 		},
 		ClosingZone = {
-			name = "Closing Zone",
-			killVerb = "was poisoned in",
-			fallVerb = "fell out of",
+			name = "Закрывающаяся зона",
+			killPhrase = "отравила",
+			fallPhrase = "сбросила в пропасть",
 			color = Color3.fromRGB(90, 255, 90),
 		},
 		CrushingWalls = {
-			name = "Crushing Walls",
-			killVerb = "was crushed by",
-			fallVerb = "fell off because of",
+			name = "Давящие стены",
+			killPhrase = "раздавили",
+			fallPhrase = "сбросили в пропасть",
 			color = Color3.fromRGB(255, 60, 60),
 		},
 		Pistons = {
-			name = "Pistons",
-			killVerb = "was crushed by",
-			fallVerb = "was pushed into the void by",
+			name = "Поршни",
+			killPhrase = "раздавили",
+			fallPhrase = "столкнули в пропасть",
 			color = Color3.fromRGB(255, 200, 40),
 		},
 	} :: { [Types.TrapType]: TrapInfo },
@@ -98,8 +101,8 @@ function Traps.info(trapType: Types.TrapType): TrapInfo
 	return Traps.Info[trapType]
 		or {
 			name = trapType,
-			killVerb = "was killed by",
-			fallVerb = "fell because of",
+			killPhrase = "поймала",
+			fallPhrase = "сбросила в пропасть",
 			color = Color3.fromRGB(255, 255, 255),
 		}
 end

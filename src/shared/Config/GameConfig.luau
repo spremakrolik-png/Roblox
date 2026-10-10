@@ -21,7 +21,7 @@ local GameConfig = {
 	-- Characters ----------------------------------------------------------
 	LobbyWalkSpeed = 16,
 	RunnerWalkSpeed = 16,
-	TrapperWalkSpeed = 28,
+	TrapperWalkSpeed = 16 * 3, -- three times a runner: the trapper has to keep up with the leader
 	JumpPower = 50,
 	Gravity = 196.2,
 	JumpSafetyMargin = 0.15, -- every generated jump stays at least 15% below the physical limit
@@ -55,7 +55,7 @@ local GameConfig = {
 		GateHeight = 14,
 		GlassHeight = 40, -- above the highest floor of a span
 		WallThickness = 1,
-		CorridorWidth = 10,
+		CorridorWidth = 20, -- the trapper's corridor is wider than the 16-stud track
 		FallKillDepth = 40, -- below the lowest floor of the track
 		ProgressVolumeHeight = 40,
 		ProgressVolumeDepth = 12,

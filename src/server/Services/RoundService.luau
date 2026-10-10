@@ -74,12 +74,12 @@ local active: { round: Round?, track: Types.Track?, participants: { Player } } =
 }
 
 local ELIMINATION_TEXT: { [Types.EliminationReason]: string } = {
-	Died = "%s died",
-	Fell = "%s fell into the void",
-	Trap = "%s was killed by a trap",
-	AFK = "%s was eliminated (AFK)",
-	Left = "%s left the game",
-	Disqualified = "%s was disqualified",
+	Died = "%s выбывает",
+	Fell = "%s падает в пропасть",
+	Trap = "%s попадает в ловушку",
+	AFK = "%s выбывает (AFK)",
+	Left = "%s выходит из игры",
+	Disqualified = "%s: дисквалификация",
 }
 
 -- The fastest a runner could legitimately cover `distance` studs: every ability that adds speed
@@ -204,7 +204,7 @@ local function pruneRoster(roster: Roster): boolean
 			table.remove(roster.runners, index)
 		end
 		applyRoles(roster)
-		feed(`The trapper left. {replacement.DisplayName} is the new trapper!`, "Info")
+		feed(`Трапер вышел. Новый трапер: {replacement.DisplayName}`, "Info")
 	end
 	return #roster.runners + 1 >= GameConfig.MinPlayers
 end
@@ -231,7 +231,7 @@ local function runCountdown(roster: Roster): Types.Track?
 	while os.clock() < deadline do
 		task.wait(0.25)
 		if not pruneRoster(roster) then
-			feed("Not enough players - round cancelled", "Info")
+			feed("Не хватает игроков — раунд отменён", "Info")
 			active.track = nil
 			TrackGenerator.destroy(track)
 			return nil
@@ -242,8 +242,8 @@ end
 
 -- Round -----------------------------------------------------------------------
 
--- `cause` is the phrase after the runner's name for trap kills ("was burned by Lava Floor").
-local function eliminate(runner: RunnerState, reason: Types.EliminationReason, cause: string?)
+-- Trap kills pass their own kill-feed line and a short cause for the results screen.
+local function eliminate(runner: RunnerState, reason: Types.EliminationReason, feedText: string?, cause: string?)
 	if runner.status ~= "Alive" then
 		return
 	end
@@ -253,8 +253,8 @@ local function eliminate(runner: RunnerState, reason: Types.EliminationReason, c
 	if inGame(runner.player) then
 		runner.player:SetAttribute(PlayerKeys.Status, "Eliminated")
 	end
-	if cause then
-		feed(`{runner.name} {cause}`, "Death")
+	if feedText then
+		feed(feedText, "Death")
 	else
 		feed(string.format(ELIMINATION_TEXT[reason], runner.name), "Death")
 	end
@@ -266,7 +266,8 @@ local function trapKill(round: Round, runner: RunnerState, trapType: Types.TrapT
 		return
 	end
 	local info = TrapsConfig.info(trapType)
-	eliminate(runner, "Trap", `{if byFall then info.fallVerb else info.killVerb} {info.name}`)
+	local phrase = if byFall then info.fallPhrase else info.killPhrase
+	eliminate(runner, "Trap", `{info.name} {phrase} {runner.name}`, `ловушка «{info.name}»`)
 	round.trapperKills += 1
 end
 
@@ -281,7 +282,7 @@ local function finish(round: Round, runner: RunnerState)
 	runner.player:SetAttribute(PlayerKeys.Progress, 1)
 	feed(
 		string.format(
-			"%s finished #%d (%s)",
+			"%s финиширует: %d место (%s)",
 			runner.name,
 			#round.finishers,
 			StatusText.formatTime(runner.finishTime or 0)
@@ -488,7 +489,7 @@ local function startRound(track: Types.Track, roster: Roster): Round
 			eliminate(runner, "Left")
 		elseif player == round.trapper and not round.trapperLeft then
 			round.trapperLeft = true
-			feed(`The trapper {round.trapperName} left the game`, "Info")
+			feed(`Трапер {round.trapperName} вышел из игры`, "Info")
 		end
 	end)
 
@@ -647,13 +648,13 @@ end
 local function announce(results: Types.RoundResults)
 	local winner = results.winner
 	if winner == "Runners" then
-		feed("Runners win!", "Info")
+		feed("Победа раннеров!", "Info")
 	elseif winner == "Trapper" then
-		feed(`Trapper {results.trapperName} wins!`, "Info")
+		feed(`Победа трапера {results.trapperName}!`, "Info")
 	elseif winner == "NoContest" then
-		feed("No contest - every runner left", "Info")
+		feed("Ничья: все раннеры вышли", "Info")
 	else
-		feed("Round aborted", "Info")
+		feed("Раунд прерван", "Info")
 	end
 	print(
 		`[Round] Over: winner={winner} finishers={#results.finishers} eliminated={#results.eliminated} duration={math.floor(

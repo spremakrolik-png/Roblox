@@ -43,11 +43,18 @@ local rng = Random.new()
 
 local function addCircleLabel(part: BasePart, kind: CircleKind, color: Color3): TextLabel
 	local billboard = Build.billboard(part, 7, Vector2.new(16, 7))
-	Build.textLabel("Title", billboard, string.upper(kind), color, UDim2.fromScale(0, 0), UDim2.fromScale(1, 0.6))
+	Build.textLabel(
+		"Title",
+		billboard,
+		if kind == "Runner" then "РАННЕР" else "ТРАПЕР",
+		color,
+		UDim2.fromScale(0, 0),
+		UDim2.fromScale(1, 0.6)
+	)
 	return Build.textLabel(
 		"Count",
 		billboard,
-		"0 players",
+		"Игроков: 0",
 		Color3.new(1, 1, 1),
 		UDim2.fromScale(0, 0.6),
 		UDim2.fromScale(1, 0.4)
@@ -81,7 +88,7 @@ local function attachBoard(part: BasePart)
 	Build.textLabel(
 		"Logo",
 		background,
-		"TRAP RUNNER",
+		"ТРАП РАННЕР",
 		Color3.fromRGB(255, 196, 40),
 		UDim2.fromScale(0.05, 0.05),
 		UDim2.fromScale(0.9, 0.3)
@@ -258,7 +265,7 @@ local function refresh()
 
 	for _, circle in circles do
 		local count = counts[circle.kind]
-		setText(circle.countLabel, if count == 1 then "1 player" else `{count} players`)
+		setText(circle.countLabel, `Игроков: {count}`)
 	end
 
 	local title, detail = StatusText.describe(GameState.snapshot(), workspace:GetServerTimeNow())

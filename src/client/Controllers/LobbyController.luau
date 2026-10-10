@@ -22,16 +22,21 @@ local function hint(): (string, Color3)
 	local roundRunning = phase == "Countdown" or phase == "Round" or phase == "Results"
 
 	if circle == "Runner" then
-		return if roundRunning then "RUNNER circle - you'll run next round" else "You're in the RUNNER circle",
+		return if roundRunning
+			then "Круг РАННЕР — побежишь в следующем раунде"
+			else "Ты в круге РАННЕР",
 			UI.Colors.Runner
 	elseif circle == "Trapper" then
-		return if roundRunning then "TRAPPER circle - you may trap next round" else "You're in the TRAPPER circle",
+		return if roundRunning
+			then "Круг ТРАПЕР — можешь стать трапером в следующем раунде"
+			else "Ты в круге ТРАПЕР",
 			UI.Colors.Trapper
 	end
 	if roundRunning then
-		return "Round in progress - stand in a circle to join the next one", UI.Colors.Muted
+		return "Идёт раунд — встань в круг, чтобы сыграть в следующем",
+			UI.Colors.Muted
 	end
-	return "Stand in a circle to play", UI.Colors.Muted
+	return "Встань в круг, чтобы играть", UI.Colors.Muted
 end
 
 function LobbyController.start()

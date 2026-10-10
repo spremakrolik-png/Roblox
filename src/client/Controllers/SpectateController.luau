@@ -1,6 +1,6 @@
 --!strict
 -- Spectator camera. Eliminated runners start spectating automatically; finished runners and lobby
--- players can press SPECTATE. The camera follows living runners or the trapper; switch with the big
+-- players can press СМОТРЕТЬ (spectate). The camera follows living runners or the trapper; switch with the big
 -- arrow buttons or Q / E. The server moves streaming to the watched player (SpectateService).
 
 local Players = game:GetService("Players")
@@ -125,10 +125,10 @@ local function update()
 
 	local current = target
 	if not current then
-		nameLabel.Text = "Nobody left to watch"
+		nameLabel.Text = "Смотреть не на кого"
 		return
 	end
-	local role = if GameState.getRole(current) == "Trapper" then "Trapper" else "Runner"
+	local role = if GameState.getRole(current) == "Trapper" then "трапер" else "раннер"
 	nameLabel.Text = `{current.DisplayName} ({role})`
 
 	local character = current.Character
@@ -148,7 +148,7 @@ local function makeButton(name: string, text: string, parent: Instance, position
 	local button = Instance.new("TextButton")
 	button.Name = name
 	button.Text = text
-	button.Font = Enum.Font.FredokaOne
+	button.Font = Enum.Font.SourceSansBold
 	button.TextScaled = true
 	button.TextColor3 = UI.Colors.Text
 	button.BackgroundColor3 = UI.Colors.Panel
@@ -183,7 +183,7 @@ function SpectateController.start()
 		maxTextSize = 26,
 	})
 
-	startButton = makeButton("Spectate", "SPECTATE", gui, UDim2.new(0.5, 0, 1, -72), Vector2.new(0.5, 1))
+	startButton = makeButton("Spectate", "СМОТРЕТЬ", gui, UDim2.new(0.5, 0, 1, -72), Vector2.new(0.5, 1))
 	startButton.Size = UDim2.fromOffset(BUTTON_SIZE * 3, BUTTON_SIZE)
 	startButton.Visible = false
 	gui.Parent = player:WaitForChild("PlayerGui")

@@ -31,30 +31,30 @@ function StatusText.describe(state: GameState.Snapshot, now: number): (string, s
 	local phase = state.phase
 	local inCircles = state.runnerCircle + state.trapperCircle
 	if phase == "Waiting" then
-		return "Stand in a circle to play",
-			string.format("Players in circles: %d / %d", inCircles, GameConfig.MinPlayers)
+		return "Встань в круг, чтобы играть",
+			string.format("Игроков в кругах: %d / %d", inCircles, GameConfig.MinPlayers)
 	elseif phase == "Intermission" then
-		return string.format("Next round in %d", StatusText.secondsLeft(state, now)),
-			"Step into RUNNER or TRAPPER to join"
+		return string.format("Следующий раунд через %d", StatusText.secondsLeft(state, now)),
+			"Встань в круг РАННЕР или ТРАПЕР"
 	elseif phase == "Countdown" then
-		local detail = string.format("Trapper: %s", state.trapperName)
+		local detail = string.format("Трапер: %s", state.trapperName)
 		if state.themeName ~= "" then
 			detail ..= "  |  " .. state.themeName
 		end
-		return string.format("Round starts in %d", StatusText.secondsLeft(state, now)), detail
+		return string.format("Раунд начнётся через %d", StatusText.secondsLeft(state, now)), detail
 	elseif phase == "Round" then
 		local detail = string.format(
-			"Runners alive: %d / %d   Leader: %d%%",
+			"Живых раннеров: %d / %d   Лидер: %d%%",
 			state.aliveRunners,
 			state.totalRunners,
 			math.floor(state.leaderProgress * 100 + 0.5)
 		)
 		if state.roundStartedAt <= 0 or now < state.roundStartedAt then
-			return "Get ready...", detail
+			return "Приготовься...", detail
 		end
-		return string.format("Round in progress  %s", StatusText.formatClock(now - state.roundStartedAt)), detail
+		return string.format("Идёт раунд  %s", StatusText.formatClock(now - state.roundStartedAt)), detail
 	else
-		return "Round over", "Next round soon"
+		return "Раунд окончен", "Скоро следующий раунд"
 	end
 end
 

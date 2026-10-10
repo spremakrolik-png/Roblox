@@ -41,12 +41,12 @@ local bannerToken = 0
 local lastPhase: Types.Phase? = nil
 
 local ELIMINATION_LABEL: { [Types.EliminationReason]: string } = {
-	Died = "died",
-	Fell = "fell into the void",
-	AFK = "eliminated (AFK)",
-	Left = "left the game",
-	Disqualified = "disqualified",
-	Trap = "killed by a trap",
+	Died = "выбыл(а)",
+	Fell = "упал(а) в пропасть",
+	AFK = "выбыл(а) за бездействие",
+	Left = "вышел(ла) из игры",
+	Disqualified = "дисквалификация",
+	Trap = "ловушка",
 }
 
 local FEED_COLORS: { [Types.FeedKind]: Color3 } = {
@@ -75,7 +75,7 @@ local function build(): Elements
 		size = UDim2.fromScale(1, 0.42),
 		position = UDim2.fromScale(0, 0.58),
 		color = UI.Colors.Muted,
-		font = Enum.Font.GothamMedium,
+		font = Enum.Font.SourceSansSemibold,
 		maxTextSize = 22,
 	})
 
@@ -141,7 +141,7 @@ local function build(): Elements
 		size = UDim2.fromScale(1, 0.1),
 		position = UDim2.fromScale(0, 0.17),
 		color = UI.Colors.Muted,
-		font = Enum.Font.GothamMedium,
+		font = Enum.Font.SourceSansSemibold,
 		maxTextSize = 20,
 	})
 	local resultsList = Instance.new("ScrollingFrame")
@@ -198,29 +198,32 @@ local function personalLine(state: GameState.Snapshot): (string, Color3)
 
 	if phase == "Countdown" then
 		if role == "Trapper" then
-			return "You will be the TRAPPER", UI.Colors.Trapper
+			return "Ты будешь ТРАПЕРОМ", UI.Colors.Trapper
 		end
-		return "You will be a RUNNER", UI.Colors.Runner
+		return "Ты будешь РАННЕРОМ", UI.Colors.Runner
 	end
 
 	if role == "Trapper" then
-		return "TRAPPER - run along the corridor, press E at the buttons", UI.Colors.Trapper
+		return "ТРАПЕР — беги по коридору и жми E у кнопок", UI.Colors.Trapper
 	end
 	local status = GameState.getStatus(player)
 	if status == "Finished" then
 		local place = player:GetAttribute(GameState.PlayerKeys.Place)
-		return string.format("Finished #%d! Watch the others", if typeof(place) == "number" then place else 0),
+		return string.format(
+			"Финиш: %d место! Смотри за остальными",
+			if typeof(place) == "number" then place else 0
+		),
 			UI.Colors.Gold
 	elseif status == "Eliminated" then
-		return "Eliminated - you are spectating", UI.Colors.Death
+		return "Ты вне игры — режим зрителя", UI.Colors.Death
 	end
 	local progress = player:GetAttribute(GameState.PlayerKeys.Progress)
 	local percent = if typeof(progress) == "number" then math.floor(progress * 100 + 0.5) else 0
-	local line = string.format("Your progress: %d%%", percent)
+	local line = string.format("Твой прогресс: %d%%", percent)
 	if state.checkpointCount > 0 then
 		local passed = player:GetAttribute(GameState.PlayerKeys.Checkpoint)
 		line ..= string.format(
-			"  |  Checkpoint %d/%d",
+			"  |  Чекпоинт %d/%d",
 			if typeof(passed) == "number" then passed else 0,
 			state.checkpointCount
 		)
@@ -292,9 +295,9 @@ end
 
 local function onRoleBanner(role: Types.Role)
 	if role == "Trapper" then
-		showBanner("YOU ARE THE TRAPPER - stop them all!", UI.Colors.Trapper)
+		showBanner("ТЫ ТРАПЕР — останови их всех!", UI.Colors.Trapper)
 	elseif role == "Runner" then
-		showBanner("RUN!", UI.Colors.Runner)
+		showBanner("БЕГИ!", UI.Colors.Runner)
 	end
 end
 
@@ -308,7 +311,7 @@ local function onFeed(entry: Types.FeedEntry)
 		text = entry.text,
 		size = UDim2.new(1, 0, 0, 24),
 		color = FEED_COLORS[entry.kind] or UI.Colors.Text,
-		font = Enum.Font.GothamBold,
+		font = Enum.Font.SourceSansBold,
 		alignX = Enum.TextXAlignment.Right,
 		maxTextSize = 20,
 	})
@@ -347,7 +350,7 @@ local function addResultLine(order: number, text: string, color: Color3)
 		text = text,
 		size = UDim2.new(1, -8, 0, 28),
 		color = color,
-		font = Enum.Font.GothamBold,
+		font = Enum.Font.SourceSansBold,
 		alignX = Enum.TextXAlignment.Left,
 		maxTextSize = 22,
 	})
@@ -363,18 +366,18 @@ local function onResults(results: Types.RoundResults)
 
 	local winner = results.winner
 	if winner == "Runners" then
-		setText(elements.resultsTitle, "RUNNERS WIN!", UI.Colors.Runner)
+		setText(elements.resultsTitle, "ПОБЕДА РАННЕРОВ!", UI.Colors.Runner)
 	elseif winner == "Trapper" then
-		setText(elements.resultsTitle, "TRAPPER WINS!", UI.Colors.Trapper)
+		setText(elements.resultsTitle, "ПОБЕДА ТРАПЕРА!", UI.Colors.Trapper)
 	elseif winner == "NoContest" then
-		setText(elements.resultsTitle, "NO CONTEST", UI.Colors.Muted)
+		setText(elements.resultsTitle, "НИЧЬЯ", UI.Colors.Muted)
 	else
-		setText(elements.resultsTitle, "ROUND ABORTED", UI.Colors.Muted)
+		setText(elements.resultsTitle, "РАУНД ПРЕРВАН", UI.Colors.Muted)
 	end
 	setText(
 		elements.resultsSummary,
 		string.format(
-			"Trapper: %s  |  Kills: %d  |  Time: %s",
+			"Трапер: %s  |  Убийств: %d  |  Время: %s",
 			results.trapperName,
 			results.trapperKills,
 			StatusText.formatClock(results.duration)
@@ -387,23 +390,23 @@ local function onResults(results: Types.RoundResults)
 		local color = if finisher.place <= 3 then UI.Colors.Gold else UI.Colors.Text
 		addResultLine(
 			order,
-			string.format("#%d  %s  %s", finisher.place, finisher.name, StatusText.formatTime(finisher.time)),
+			string.format("%d место  %s  %s", finisher.place, finisher.name, StatusText.formatTime(finisher.time)),
 			color
 		)
 	end
 	for _, name in results.survivors do
 		order += 1
-		addResultLine(order, string.format("%s - survived", name), UI.Colors.Runner)
+		addResultLine(order, string.format("%s — в живых", name), UI.Colors.Runner)
 	end
 	for _, entry in results.eliminated do
 		order += 1
 		local text = if entry.cause
-			then `{entry.name} {entry.cause}`
-			else string.format("%s - %s", entry.name, ELIMINATION_LABEL[entry.reason] or "eliminated")
+			then `{entry.name} — {entry.cause}`
+			else string.format("%s — %s", entry.name, ELIMINATION_LABEL[entry.reason] or "выбыл(а)")
 		addResultLine(order, text, UI.Colors.Death)
 	end
 	if order == 0 then
-		addResultLine(1, "No runners this round", UI.Colors.Muted)
+		addResultLine(1, "В этом раунде не было раннеров", UI.Colors.Muted)
 	end
 
 	elements.results.Visible = true

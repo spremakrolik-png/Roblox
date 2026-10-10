@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local SegmentDefs = require(ReplicatedStorage.Shared.Config.Segments)
+local TrapsConfig = require(ReplicatedStorage.Shared.Config.Traps)
 local Types = require(ReplicatedStorage.Shared.Types)
 local Assets = require(script.Parent.Parent.Util.Assets)
 local Build = require(script.Parent.Parent.Util.Build)
@@ -24,8 +25,9 @@ local CORRIDOR_X = HALF_WIDTH + WALL + TrackConfig.CorridorWidth / 2
 local OUTER_WALL_X = HALF_WIDTH + WALL + TrackConfig.CorridorWidth + WALL / 2
 local LEFT_EDGE = -HALF_WIDTH - WALL -- outer face of the left side walls
 local RIGHT_EDGE = OUTER_WALL_X + WALL / 2 -- outer face of the corridor wall
--- Trap buttons stand by the outer corridor wall: more than 8 studs (the prompt radius) from any runner.
-local BUTTON_X = OUTER_WALL_X - WALL / 2 - 2
+-- Trap buttons stand in the corridor, just over the prompt radius away from the track edge, so no
+-- runner can ever reach them while the trapper runs right past them.
+local BUTTON_X = HALF_WIDTH + WALL + TrapsConfig.ButtonActivationDistance + 1
 
 local function pointInBox(box: Types.Box, position: Vector3): boolean
 	local relative = box.cframe:PointToObjectSpace(position)
@@ -188,8 +190,8 @@ local function buildFinish(model: Model, theme: Types.Theme, from: CFrame): Type
 		parent = area,
 	})
 	-- The runners approach from behind the banner's back face (+Z), so label both faces.
-	Build.sign(banner, Enum.NormalId.Back, "FINISH", theme.accentColor)
-	Build.sign(banner, Enum.NormalId.Front, "FINISH", theme.accentColor)
+	Build.sign(banner, Enum.NormalId.Back, "ФИНИШ", theme.accentColor)
+	Build.sign(banner, Enum.NormalId.Front, "ФИНИШ", theme.accentColor)
 
 	-- Everything past the finish line counts as finished.
 	local zoneStart = 2.5
@@ -282,7 +284,7 @@ local function buildCheckpointGate(parent: Instance, theme: Types.Theme, at: CFr
 		canQuery = false,
 		parent = gate,
 	})
-	local text = `CHECKPOINT {number}/{total}`
+	local text = `ЧЕКПОИНТ {number}/{total}`
 	Build.sign(beam, Enum.NormalId.Back, text, theme.accentColor)
 	Build.sign(beam, Enum.NormalId.Front, text, theme.accentColor)
 end
