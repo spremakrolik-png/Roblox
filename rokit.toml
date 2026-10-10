@@ -1,0 +1,5 @@
+# Toolchain: run `rokit install` in the project folder.
+[tools]
+rojo = "rojo-rbx/rojo@7.4.4"
+stylua = "JohnnyMorganz/StyLua@2.5.2"
+selene = "Kampfkarren/selene@0.27.1"

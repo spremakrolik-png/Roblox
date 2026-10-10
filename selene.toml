@@ -1,0 +1,5 @@
+std = "roblox"
+
+[rules]
+# Luau type annotations sometimes need a shadowing local after a refinement.
+shadowing = "allow"
