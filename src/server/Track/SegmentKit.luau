@@ -19,6 +19,7 @@ export type SlabOptions = {
 	name: string?,
 	color: Color3?,
 	material: Enum.Material?,
+	collide: boolean?,
 }
 
 -- Local position -> world CFrame (same orientation as the entry).
@@ -38,6 +39,8 @@ function SegmentKit.slab(ctx: Types.SegmentContext, options: SlabOptions): Part
 		cframe = SegmentKit.at(ctx, options.x or 0, top - thickness / 2, options.z0 + length / 2),
 		color = options.color or ctx.theme.floorColor,
 		material = options.material or ctx.theme.floorMaterial,
+		physics = ctx.theme.floorPhysics,
+		canCollide = options.collide,
 		parent = ctx.parent,
 	})
 end
@@ -77,6 +80,15 @@ function SegmentKit.fit(z0: number, z1: number, itemLength: number, maxGap: numb
 	end
 end
 
+-- Lays items with gaps of exactly `gap` inside a span, stretching or shrinking the items a little
+-- so the gap (and therefore the difficulty) is what the segment asked for. Returns count and item length.
+function SegmentKit.layout(span: number, itemLength: number, gap: number): (number, number)
+	local count = math.max(1, math.floor((span - gap) / (itemLength + gap) + 0.5))
+	local length = (span - (count + 1) * gap) / count
+	assert(length > 0.5, `layout: span {span} cannot fit items with gap {gap}`)
+	return count, length
+end
+
 -- A vertical pillar whose top surface is at local (x, top, z).
 function SegmentKit.pillar(ctx: Types.SegmentContext, x: number, z: number, top: number, diameter: number): Part
 	return Build.pillar(
@@ -87,7 +99,8 @@ function SegmentKit.pillar(ctx: Types.SegmentContext, x: number, z: number, top:
 		24,
 		ctx.theme.floorColor,
 		ctx.theme.floorMaterial,
-		ctx.parent
+		ctx.parent,
+		ctx.theme.floorPhysics
 	)
 end
 

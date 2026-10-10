@@ -1,7 +1,6 @@
 --!strict
--- Builds the round's track: start area, segments, finish platform and the trapper corridor
--- behind a glass wall. Phase 1 uses the fixed segment list from GameConfig.Track.FixedSegments;
--- Phase 2 replaces the selection with a seeded generator.
+-- Builds the round's track from a seed: start area, the segments chosen by TrackPlanner, checkpoint
+-- gates, the finish platform, the trapper corridor behind a glass wall and the theme's decor.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -12,6 +11,7 @@ local Assets = require(script.Parent.Parent.Util.Assets)
 local Build = require(script.Parent.Parent.Util.Build)
 local Segments = require(script.Parent.Segments)
 local Themes = require(script.Parent.Themes)
+local TrackPlanner = require(script.Parent.TrackPlanner)
 
 local TrackConfig = GameConfig.Track
 
@@ -127,6 +127,7 @@ local function buildStart(model: Model, theme: Types.Theme, origin: CFrame): ({ 
 		cframe = from * CFrame.new(0, -0.5, -length / 2),
 		color = theme.floorColor,
 		material = theme.floorMaterial,
+		physics = theme.floorPhysics,
 		parent = area,
 	})
 	buildSides(area, theme, from, length, 0)
@@ -159,6 +160,7 @@ local function buildFinish(model: Model, theme: Types.Theme, from: CFrame): Type
 		cframe = from * CFrame.new(0, -0.5, -length / 2),
 		color = theme.floorColor,
 		material = theme.floorMaterial,
+		physics = theme.floorPhysics,
 		parent = area,
 	})
 	buildSides(area, theme, from, length, 0)
@@ -195,6 +197,94 @@ local function buildFinish(model: Model, theme: Types.Theme, from: CFrame): Type
 	}
 end
 
+-- Theme decor under and beside one stretch of track: a surface far below (lava, neon, water...)
+-- and columns rising from it on the open side, out of jumping reach and without collision.
+local function buildDecor(parent: Instance, theme: Types.Theme, from: CFrame, length: number, rise: number)
+	local killDepth = TrackConfig.FallKillDepth
+	local abyssTop = math.min(0, rise) - killDepth + 8
+	local abyss = Build.part({
+		name = "Abyss",
+		size = Vector3.new(TrackConfig.DecorOffset * 2 + TrackConfig.Width * 2, 1, length + 0.2),
+		cframe = from * CFrame.new(0, abyssTop - 0.5, -length / 2),
+		color = theme.abyssColor,
+		material = theme.abyssMaterial,
+		canCollide = false,
+		canTouch = false,
+		canQuery = false,
+		castShadow = false,
+		parent = parent,
+	})
+	abyss.Transparency = if theme.abyssMaterial == Enum.Material.Glass then 0.3 else 0
+
+	local spacing = TrackConfig.DecorSpacing
+	local z = spacing / 2
+	while z < length do
+		local floorY = rise * z / length
+		local base = from * CFrame.new(-TrackConfig.DecorOffset, 0, -z)
+		local column = Build.pillar(
+			"Column",
+			base,
+			floorY + 10,
+			3,
+			floorY + 10 - abyssTop,
+			theme.decorColor,
+			theme.decorMaterial,
+			parent
+		)
+		column.CanCollide = false
+		column.CanQuery = false
+		local top = Build.part({
+			name = "ColumnTop",
+			size = Vector3.new(3.6, 1.2, 3.6),
+			cframe = base * CFrame.new(0, floorY + 10.6, 0),
+			color = theme.decorTopColor,
+			material = Enum.Material.Neon,
+			canCollide = false,
+			canQuery = false,
+			castShadow = false,
+			parent = parent,
+		})
+		top.CanTouch = false
+		z += spacing
+	end
+end
+
+-- A non-solid arch across the track (and a marker in the corridor) where a checkpoint is counted.
+local function buildCheckpointGate(parent: Instance, theme: Types.Theme, at: CFrame, number: number, total: number)
+	local gate = Build.model(`Checkpoint{number}`, parent)
+	local height = TrackConfig.GateHeight
+	local function piece(name: string, size: Vector3, offset: CFrame)
+		Build.part({
+			name = name,
+			size = size,
+			cframe = at * offset,
+			color = theme.accentColor,
+			material = Enum.Material.Neon,
+			canCollide = false,
+			canTouch = false,
+			canQuery = false,
+			castShadow = false,
+			parent = gate,
+		})
+	end
+	piece("PostLeft", Vector3.new(0.8, height, 0.8), CFrame.new(-HALF_WIDTH + 0.4, height / 2, 0))
+	piece("PostRight", Vector3.new(0.8, height, 0.8), CFrame.new(HALF_WIDTH - 0.4, height / 2, 0))
+	piece("CorridorMark", Vector3.new(TrackConfig.CorridorWidth, 0.2, 1.5), CFrame.new(CORRIDOR_X, 0.1, 0))
+	local beam = Build.part({
+		name = "Sign",
+		size = Vector3.new(TrackConfig.Width, 2.5, 0.6),
+		cframe = at * CFrame.new(0, height - 1.25, 0),
+		color = theme.wallColor,
+		canCollide = false,
+		canTouch = false,
+		canQuery = false,
+		parent = gate,
+	})
+	local text = `CHECKPOINT {number}/{total}`
+	Build.sign(beam, Enum.NormalId.Back, text, theme.accentColor)
+	Build.sign(beam, Enum.NormalId.Front, text, theme.accentColor)
+end
+
 local function buildSegment(index: number, ctx: Types.SegmentContext): Model
 	local def = ctx.def
 	local entry = ctx.entry
@@ -205,8 +295,8 @@ local function buildSegment(index: number, ctx: Types.SegmentContext): Model
 		asset:PivotTo(entry)
 		asset.Parent = segmentModel
 	else
-		local builder = Segments[def.id]
-		assert(builder, `No builder for segment {def.id}`)
+		local builder = Segments[def.builder]
+		assert(builder, `No builder {def.builder} for segment {def.id}`)
 		builder(ctx)
 	end
 	buildSides(segmentModel, ctx.theme, entry, def.length, def.rise)
@@ -214,12 +304,27 @@ local function buildSegment(index: number, ctx: Types.SegmentContext): Model
 	return segmentModel
 end
 
--- Builds a new track in Workspace. Pass a seed to rebuild a specific track for debugging.
+-- A fresh random seed, or GameConfig.Track.DebugSeed when it is set (to replay a track from the logs).
+function TrackGenerator.newSeed(): number
+	if TrackConfig.DebugSeed ~= 0 then
+		return TrackConfig.DebugSeed
+	end
+	return Random.new():NextInteger(1, 2 ^ 30)
+end
+
+-- Builds a new track in Workspace. The same seed always gives the same track.
 function TrackGenerator.generate(seed: number?): Types.Track
-	local trackSeed = seed or Random.new():NextInteger(1, 2 ^ 30)
-	print(`[Track] seed = {trackSeed}`)
-	local rng = Random.new(trackSeed)
-	local theme = Themes.default
+	local trackSeed = seed or TrackGenerator.newSeed()
+	local plan = TrackPlanner.plan(trackSeed, SegmentDefs.list)
+	local theme = Themes.forSeed(trackSeed)
+	-- Geometry gets its own stream, so tweaking a builder never changes which segments are picked.
+	local rng = Random.new(trackSeed + 104729)
+
+	local ids: { string } = {}
+	for _, def in plan.segments do
+		table.insert(ids, def.id)
+	end
+	print(`[Track] seed = {trackSeed}, theme = {theme.name}, {#plan.segments} segments: {table.concat(ids, ", ")}`)
 
 	local model = Instance.new("Model")
 	model.Name = "Track"
@@ -227,15 +332,12 @@ function TrackGenerator.generate(seed: number?): Types.Track
 
 	local origin = CFrame.lookAt(TrackConfig.Origin, TrackConfig.Origin + Vector3.xAxis)
 	local runnerSpawns, trapperSpawn, gates = buildStart(model, theme, origin)
+	buildDecor(model, theme, origin * CFrame.new(0, 0, TrackConfig.StartPadLength), TrackConfig.StartPadLength, 0)
 
 	local segments: { Types.TrackSegment } = {}
 	local entry = origin
 	local distance = 0
-	local lowestFloor = origin.Y
-	for index, id in TrackConfig.FixedSegments do
-		local def = SegmentDefs.byId[id]
-		assert(def, `Unknown segment id {id}`)
-
+	for index, def in plan.segments do
 		local ctx: Types.SegmentContext = {
 			entry = entry,
 			def = def,
@@ -246,6 +348,7 @@ function TrackGenerator.generate(seed: number?): Types.Track
 			rng = rng,
 		}
 		local segmentModel = buildSegment(index, ctx)
+		buildDecor(segmentModel, theme, entry, def.length, def.rise)
 
 		local exit = entry * CFrame.new(0, def.rise, -def.length)
 		local low = math.min(0, def.rise) - TrackConfig.ProgressVolumeDepth
@@ -260,15 +363,27 @@ function TrackGenerator.generate(seed: number?): Types.Track
 				size = Vector3.new(TrackConfig.Width + TrackConfig.ProgressVolumeSlack * 2, high - low, def.length),
 			},
 			startDistance = distance,
+			killY = math.min(entry.Y, exit.Y) - TrackConfig.FallKillDepth,
 			model = segmentModel,
 		})
 
 		distance += def.length
-		lowestFloor = math.min(lowestFloor, exit.Y)
 		entry = exit
 	end
 
+	local checkpoints: { Types.Checkpoint } = {}
+	for number, after in plan.checkpointsAfter do
+		local segment = segments[after]
+		buildCheckpointGate(segment.model, theme, segment.exit, number, #plan.checkpointsAfter)
+		table.insert(checkpoints, {
+			index = number,
+			afterSegment = after,
+			distance = segment.startDistance + segment.def.length,
+		})
+	end
+
 	local finishZone = buildFinish(model, theme, entry)
+	buildDecor(model, theme, entry, TrackConfig.FinishPadLength, 0)
 	model.Parent = workspace
 
 	return {
@@ -280,9 +395,23 @@ function TrackGenerator.generate(seed: number?): Types.Track
 		runnerSpawns = runnerSpawns,
 		trapperSpawn = trapperSpawn,
 		finishZone = finishZone,
-		killY = lowestFloor - TrackConfig.FallKillDepth,
+		startKillY = origin.Y - TrackConfig.FallKillDepth,
+		checkpoints = checkpoints,
 		gates = gates,
 	}
+end
+
+-- Height below which a runner who has reached segment `furthest` (0 = start pad) is dead. Uses the
+-- lowest floor among the neighbouring segments, since a runner may step back onto the previous one.
+function TrackGenerator.killYFor(track: Types.Track, furthest: number): number
+	local killY = if furthest <= 1 then track.startKillY else math.huge
+	for index = math.max(1, furthest - 1), math.min(#track.segments, furthest + 1) do
+		killY = math.min(killY, track.segments[index].killY)
+	end
+	if killY == math.huge then
+		killY = track.startKillY
+	end
+	return killY
 end
 
 function TrackGenerator.openGates(track: Types.Track)

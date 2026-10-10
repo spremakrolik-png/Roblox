@@ -45,6 +45,7 @@ local ELIMINATION_LABEL: { [Types.EliminationReason]: string } = {
 	Fell = "fell into the void",
 	AFK = "eliminated (AFK)",
 	Left = "left the game",
+	Disqualified = "disqualified",
 }
 
 local FEED_COLORS: { [Types.FeedKind]: Color3 } = {
@@ -214,7 +215,16 @@ local function personalLine(state: GameState.Snapshot): (string, Color3)
 	end
 	local progress = player:GetAttribute(GameState.PlayerKeys.Progress)
 	local percent = if typeof(progress) == "number" then math.floor(progress * 100 + 0.5) else 0
-	return string.format("Your progress: %d%%", percent), UI.Colors.Runner
+	local line = string.format("Your progress: %d%%", percent)
+	if state.checkpointCount > 0 then
+		local passed = player:GetAttribute(GameState.PlayerKeys.Checkpoint)
+		line ..= string.format(
+			"  |  Checkpoint %d/%d",
+			if typeof(passed) == "number" then passed else 0,
+			state.checkpointCount
+		)
+	end
+	return line, UI.Colors.Runner
 end
 
 local function gateLine(state: GameState.Snapshot, now: number): string

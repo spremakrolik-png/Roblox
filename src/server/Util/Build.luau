@@ -15,6 +15,7 @@ export type PartProps = {
 	canTouch: boolean?,
 	canQuery: boolean?,
 	castShadow: boolean?,
+	physics: PhysicalProperties?,
 	parent: Instance?,
 }
 
@@ -41,6 +42,9 @@ function Build.part(props: PartProps): Part
 	if props.canQuery ~= nil then
 		part.CanQuery = props.canQuery
 	end
+	if props.physics then
+		part.CustomPhysicalProperties = props.physics
+	end
 	if props.castShadow ~= nil then
 		part.CastShadow = props.castShadow
 	end
@@ -57,11 +61,13 @@ function Build.pillar(
 	height: number,
 	color: Color3,
 	material: Enum.Material,
-	parent: Instance
+	parent: Instance,
+	physics: PhysicalProperties?
 ): Part
 	return Build.part({
 		name = name,
 		shape = Enum.PartType.Cylinder,
+		physics = physics,
 		size = Vector3.new(height, diameter, diameter),
 		-- A cylinder's axis is its local X; roll it upright.
 		cframe = base * CFrame.new(0, top - height / 2, 0) * CFrame.Angles(0, 0, math.pi / 2),

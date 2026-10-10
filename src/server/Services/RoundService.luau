@@ -36,6 +36,10 @@ type RunnerState = {
 	bestDistance: number,
 	place: number?,
 	finishTime: number?,
+	checkpoint: number, -- checkpoints passed in order
+	checkpointAt: number, -- os.clock() at the last checkpoint (or when the gates opened)
+	checkpointDistance: number, -- track distance of the last checkpoint (0 = start line)
+	tooFast: string?, -- set when a stretch was covered faster than physically possible
 }
 
 type Round = {
@@ -68,7 +72,34 @@ local ELIMINATION_TEXT: { [Types.EliminationReason]: string } = {
 	Fell = "%s fell into the void",
 	AFK = "%s was eliminated (AFK)",
 	Left = "%s left the game",
+	Disqualified = "%s was disqualified",
 }
+
+-- The fastest a runner could legitimately cover `distance` studs: every ability that adds speed
+-- (Speed Burst all the way, one Dash), with extra tolerance for lag and the 10 Hz sampling.
+local function minStretchTime(distance: number): number
+	local rules = GameConfig.AntiCheat
+	local topSpeed = GameConfig.RunnerWalkSpeed * rules.SpeedMultiplierAllowance
+	return math.max(0, distance - rules.DashAllowance) / topSpeed * rules.TimeTolerance
+end
+
+-- Records a checkpoint (or the finish line, when `checkpoint` is nil) and checks the time since the
+-- previous one against the physical minimum.
+local function passCheckpoint(runner: RunnerState, distance: number, now: number, checkpoint: Types.Checkpoint?)
+	local stretch = distance - runner.checkpointDistance
+	local elapsed = now - runner.checkpointAt
+	local minimum = minStretchTime(stretch)
+	if elapsed < minimum and not runner.tooFast then
+		runner.tooFast = string.format("%.0f studs in %.2fs (minimum %.2fs)", stretch, elapsed, minimum)
+		warn(`[AntiCheat] {runner.name} ({runner.userId}) too fast: {runner.tooFast}`)
+	end
+	runner.checkpointAt = now
+	runner.checkpointDistance = distance
+	if checkpoint then
+		runner.checkpoint = checkpoint.index
+		runner.player:SetAttribute(PlayerKeys.Checkpoint, checkpoint.index)
+	end
+end
 
 local function feed(text: string, kind: Types.FeedKind)
 	local entry: Types.FeedEntry = { text = text, kind = kind }
@@ -93,6 +124,7 @@ local function resetPlayerState(player: Player)
 	player:SetAttribute(PlayerKeys.Status, "None")
 	player:SetAttribute(PlayerKeys.Progress, 0)
 	player:SetAttribute(PlayerKeys.Place, 0)
+	player:SetAttribute(PlayerKeys.Checkpoint, 0)
 end
 
 local function connect(round: Round, signal: RBXScriptSignal, handler: (...any) -> ())
@@ -185,6 +217,8 @@ local function runCountdown(roster: Roster): Types.Track?
 	end
 	local track = result :: Types.Track
 	active.track = track
+	GameState.write(Keys.ThemeName, track.theme.name)
+	GameState.write(Keys.CheckpointCount, #track.checkpoints)
 
 	while os.clock() < deadline do
 		task.wait(0.25)
@@ -241,6 +275,12 @@ local function updateProgress(round: Round, runner: RunnerState, position: Vecto
 		local segment = segments[index]
 		if TrackGenerator.pointInBox(segment.volume, position) then
 			if index > runner.furthest then
+				-- Entering segment k+1 passes the checkpoint standing after segment k.
+				for _, checkpoint in round.track.checkpoints do
+					if checkpoint.afterSegment >= runner.furthest and checkpoint.afterSegment < index then
+						passCheckpoint(runner, checkpoint.distance, now, checkpoint)
+					end
+				end
 				runner.furthest = index
 				runner.lastAdvanceAt = now
 			end
@@ -258,7 +298,7 @@ local function trackRunner(round: Round, runner: RunnerState, now: number)
 	end
 	local position = root.Position
 
-	if position.Y < round.track.killY then
+	if position.Y < TrackGenerator.killYFor(round.track, runner.furthest) then
 		eliminate(runner, "Fell")
 		CharacterService.kill(runner.player)
 		return
@@ -267,7 +307,15 @@ local function trackRunner(round: Round, runner: RunnerState, now: number)
 	updateProgress(round, runner, position, now)
 
 	if runner.furthest == #round.track.segments and TrackGenerator.pointInBox(round.track.finishZone, position) then
-		finish(round, runner)
+		-- The finish counts only after every checkpoint, in order, at a humanly possible pace.
+		passCheckpoint(runner, round.track.totalLength, now, nil)
+		if runner.tooFast or runner.checkpoint < #round.track.checkpoints then
+			warn(`[AntiCheat] {runner.name} disqualified at the finish: {runner.tooFast or "missed a checkpoint"}`)
+			eliminate(runner, "Disqualified")
+			task.spawn(CharacterService.teleport, runner.player, LobbyService.returnCFrame())
+		else
+			finish(round, runner)
+		end
 		return
 	end
 
@@ -326,6 +374,10 @@ local function newRunnerState(player: Player): RunnerState
 		furthest = 0,
 		lastAdvanceAt = os.clock(),
 		bestDistance = 0,
+		checkpoint = 0,
+		checkpointAt = os.clock(),
+		checkpointDistance = 0,
+		tooFast = nil,
 		place = nil,
 		finishTime = nil,
 	}
@@ -450,6 +502,7 @@ local function startRound(track: Types.Track, roster: Roster): Round
 	round.startedAt = os.clock()
 	for _, runner in round.runners do
 		runner.lastAdvanceAt = round.startedAt
+		runner.checkpointAt = round.startedAt
 		if runner.status == "Alive" and inGame(runner.player) then
 			Remotes.RoleBanner:FireClient(runner.player, "Runner")
 		end
@@ -576,6 +629,8 @@ local function cleanup(round: Round?, track: Types.Track?, participants: { Playe
 		TrackGenerator.destroy(track)
 	end
 	GameState.write(Keys.TrapperName, "")
+	GameState.write(Keys.ThemeName, "")
+	GameState.write(Keys.CheckpointCount, 0)
 	GameState.write(Keys.AliveRunners, 0)
 	GameState.write(Keys.TotalRunners, 0)
 	GameState.write(Keys.LeaderProgress, 0)

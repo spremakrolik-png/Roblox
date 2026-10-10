@@ -22,6 +22,8 @@ GameState.Keys = table.freeze({
 	LeaderProgress = "LeaderProgress", -- 0..1
 	RoundStartedAt = "RoundStartedAt", -- server time the start gates open
 	TrapperName = "TrapperName",
+	ThemeName = "ThemeName",
+	CheckpointCount = "CheckpointCount",
 })
 
 -- Attributes on each Player.
@@ -31,6 +33,7 @@ GameState.PlayerKeys = table.freeze({
 	Status = "RunnerStatus", -- Types.RunnerStatus
 	Progress = "Progress", -- 0..1, best distance along the track
 	Place = "Place", -- finish place, 0 = not finished
+	Checkpoint = "Checkpoint", -- checkpoints passed this round
 })
 
 export type Snapshot = {
@@ -43,6 +46,8 @@ export type Snapshot = {
 	leaderProgress: number,
 	roundStartedAt: number,
 	trapperName: string,
+	themeName: string,
+	checkpointCount: number,
 }
 
 local DEFAULTS: { [string]: any } = {
@@ -55,6 +60,8 @@ local DEFAULTS: { [string]: any } = {
 	LeaderProgress = 0,
 	RoundStartedAt = 0,
 	TrapperName = "",
+	ThemeName = "",
+	CheckpointCount = 0,
 }
 
 local folder: Folder
@@ -119,6 +126,8 @@ function GameState.snapshot(): Snapshot
 		leaderProgress = GameState.read(keys.LeaderProgress) :: number,
 		roundStartedAt = GameState.read(keys.RoundStartedAt) :: number,
 		trapperName = GameState.read(keys.TrapperName) :: string,
+		themeName = GameState.read(keys.ThemeName) :: string,
+		checkpointCount = GameState.read(keys.CheckpointCount) :: number,
 	}
 end
 

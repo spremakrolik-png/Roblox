@@ -60,8 +60,30 @@ local GameConfig = {
 		ProgressVolumeHeight = 40,
 		ProgressVolumeDepth = 12,
 		ProgressVolumeSlack = 4, -- extra width on each side, so a runner mid-jump still counts
-		-- Phase 1: a fixed list of link segments. The generator replaces it in Phase 2.
-		FixedSegments = { "JumpPlatforms", "NarrowBeam", "StepStairs", "ZigZag", "Pillars" },
+		DecorSpacing = 28, -- themed columns along the open side
+		DecorOffset = 20, -- their distance from the track centre (out of jumping reach)
+
+		-- Generator
+		DebugSeed = 0, -- non-zero: every round uses this seed (to replay a track from the logs)
+		MinSegments = 24,
+		MaxSegments = 32,
+		-- Allowed segment difficulty in each third of the track.
+		DifficultyBands = {
+			{ min = 1, max = 2 },
+			{ min = 2, max = 4 },
+			{ min = 3, max = 5 },
+		},
+		MinTrapsBeforeLink = 2, -- a link segment follows every 2-3 trap segments
+		MaxTrapsBeforeLink = 3,
+		MaxSameSegment = 2, -- one segment id at most this many times per track
+		CheckpointEvery = 6, -- segments between checkpoint gates
+	},
+
+	-- Anti-cheat: the fastest a runner could legitimately cover the stretch between checkpoints.
+	AntiCheat = {
+		SpeedMultiplierAllowance = 1.6, -- Speed Burst (+60%) running the whole stretch
+		DashAllowance = 18, -- one Dash per stretch
+		TimeTolerance = 0.8, -- extra slack for lag and measurement at 10 Hz
 	},
 }
 

@@ -1,32 +1,33 @@
 --!strict
 -- Link segment: hop across square platforms that drift left and right.
+-- params: size (platform width), gapShare (gap as a share of the safe jump).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local SegmentDefs = require(ReplicatedStorage.Shared.Config.Segments)
 local JumpMath = require(ReplicatedStorage.Shared.JumpMath)
 local Types = require(ReplicatedStorage.Shared.Types)
 local SegmentKit = require(script.Parent.Parent.SegmentKit)
-
-local PLATFORM_SIZE = 6
-local GAP_SHARE = 0.6 -- share of the max safe jump gap
 
 return function(ctx: Types.SegmentContext)
 	SegmentKit.entryPad(ctx)
 	SegmentKit.exitPad(ctx)
 
+	local size = SegmentDefs.param(ctx.def, "size", 6)
+	local gap = JumpMath.maxGap() * SegmentDefs.param(ctx.def, "gapShare", 0.6)
 	local z0, z1 = SegmentKit.innerSpan(ctx)
-	local count, gap = SegmentKit.fit(z0, z1, PLATFORM_SIZE, JumpMath.maxGap() * GAP_SHARE)
-	local maxShift = (ctx.width - PLATFORM_SIZE) / 2
+	local count, length = SegmentKit.layout(z1 - z0, size, gap)
+	local maxShift = (ctx.width - size) / 2
 	local x = 0
 	for i = 1, count do
-		local start = z0 + gap * i + PLATFORM_SIZE * (i - 1)
+		local start = z0 + gap * i + length * (i - 1)
 		-- Drift sideways by at most half a platform, so neighbours always overlap and the jump stays straight.
-		x = math.clamp(x + ctx.rng:NextNumber(-PLATFORM_SIZE / 2, PLATFORM_SIZE / 2), -maxShift, maxShift)
+		x = math.clamp(x + ctx.rng:NextNumber(-size / 2, size / 2), -maxShift, maxShift)
 		SegmentKit.slab(ctx, {
 			z0 = start,
-			z1 = start + PLATFORM_SIZE,
+			z1 = start + length,
 			x = x,
-			width = PLATFORM_SIZE,
+			width = size,
 			name = "Platform",
 		})
 	end

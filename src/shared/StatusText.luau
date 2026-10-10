@@ -37,8 +37,11 @@ function StatusText.describe(state: GameState.Snapshot, now: number): (string, s
 		return string.format("Next round in %d", StatusText.secondsLeft(state, now)),
 			"Step into RUNNER or TRAPPER to join"
 	elseif phase == "Countdown" then
-		return string.format("Round starts in %d", StatusText.secondsLeft(state, now)),
-			string.format("Trapper: %s", state.trapperName)
+		local detail = string.format("Trapper: %s", state.trapperName)
+		if state.themeName ~= "" then
+			detail ..= "  |  " .. state.themeName
+		end
+		return string.format("Round starts in %d", StatusText.secondsLeft(state, now)), detail
 	elseif phase == "Round" then
 		local detail = string.format(
 			"Runners alive: %d / %d   Leader: %d%%",
